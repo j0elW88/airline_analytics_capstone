@@ -2,7 +2,13 @@ Hello!
 
 Welcome to the Blitz Analytics - Airline Analytics Capstone Project!
 
-Before we begin we suggest you download any required Python Dependencies as well as the latest data from the Bureau of Transportation from the following link: 
+To Team:
+
+Please work in your own branch to avoid conflicting or overwriting main!
+
+To ALL: 
+
+Before you begin we suggest you download any required Python Dependencies as well as the latest data from the Bureau of Transportation from the following link: 
 https://transtats.bts.gov/DL_SelectFields.aspx?gnoyr_VQ=FHK&QO_fu146_anzr=b4vtv0%20n0q%20Qr56v0n6v10%20f748rB 
 
 Alternatively, navigate to the Bureau of Labor Statistics Website -> Go to Aviation -> and click the D1B1 Data -> D1B1 Market Data   (Name may differ slightly)
