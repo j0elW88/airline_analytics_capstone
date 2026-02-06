@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Dict, Tuple, List, Optional
 import json
 from pathlib import Path
+import sqlite3
 
 import pandas as pd
 
@@ -94,12 +95,14 @@ def ingest(
     quarter: Optional[int] = None,
     chunksize: int = 750_000,
     verbose: int = 1,
-) -> Tuple[int, int, Dict[HubAirKey, Agg], Dict[RouteAirKey, Agg]]:
+) -> Tuple[int, int, Dict[HubAirKey, Agg], Dict[RouteAirKey, Agg], int, int]:
     """
     output:
       - detected/used year, quarter
       - hub_airline_aggs: (origin, originstate, carrier) -> agg
       - route_airline_aggs: (origin, originstate, carrier)  -> agg (later use for HHI, markup proxies, etc.)
+      - total_seen: total rows encountered
+      - total_kept: total rows after filtering
     """
     if year is None or quarter is None:
         year, quarter = detect_single_period(csv_path)
@@ -200,7 +203,7 @@ def ingest(
         print(f"[done] total_seen={total_seen:,} total_kept={total_kept:,}")
         print(f"[done] hub×airline groups={len(hub_airline):,} route×airline groups={len(route_airline):,}")
 
-    return year, quarter, hub_airline, route_airline
+    return year, quarter, hub_airline, route_airline, total_seen, total_kept
 
 
 def hub_airline_table(hub_airline: Dict[HubAirKey, Agg]) -> pd.DataFrame:
@@ -253,6 +256,92 @@ def route_airline_table(route_airline: Dict[RouteAirKey, Agg]) -> pd.DataFrame:
 def period_tag(year: int, quarter: int) -> str:
     return f"{year}_Q{quarter}"
 
+
+def generate_quality_report(
+    year: int,
+    quarter: int,
+    total_seen: int,
+    total_kept: int,
+    hub_airline_count: int,
+    route_airline_count: int,
+    fare_lower: Optional[float],
+    fare_upper: Optional[float],
+) -> Dict:
+    """Generate data quality validation report."""
+    report = {
+        "period": {"year": year, "quarter": quarter},
+        "ingestion": {
+            "total_rows_seen": total_seen,
+            "total_rows_kept": total_kept,
+            "rows_filtered": total_seen - total_kept,
+            "retention_rate": round(total_kept / total_seen * 100, 2) if total_seen > 0 else 0.0,
+        },
+        "fare_filters": {
+            "lower_bound": fare_lower,
+            "upper_bound": fare_upper,
+        },
+        "aggregations": {
+            "hub_airline_groups": hub_airline_count,
+            "route_airline_groups": route_airline_count,
+        },
+    }
+    return report
+
+
+def save_quality_report(report: Dict, output_path: str):
+    """Save quality report as JSON."""
+    with open(output_path, "w") as f:
+        json.dump(report, f, indent=2)
+    print(f"[saved] Quality report: {output_path}")
+
+
+def export_to_parquet(df: pd.DataFrame, output_path: str):
+    """Export DataFrame to Parquet format for efficient storage."""
+    df.to_parquet(output_path, index=False, engine="pyarrow", compression="snappy")
+    print(f"[saved] Parquet: {output_path} ({len(df):,} rows)")
+
+
+def export_to_sqlite(
+    hub_df: pd.DataFrame,
+    route_df: pd.DataFrame,
+    db_path: str,
+    year: int,
+    quarter: int,
+    replace: bool = False,
+):
+    """
+    Export hub and route dataframes to SQLite database.
+    
+    Args:
+        hub_df: Hub×Airline DataFrame
+        route_df: Route×Airline DataFrame
+        db_path: Path to SQLite database file
+        year: Data year
+        quarter: Data quarter
+        replace: If True, replace existing data; otherwise append
+    """
+    conn = sqlite3.connect(db_path)
+    
+    #added period columns for filtering
+    hub_df = hub_df.copy()
+    route_df = route_df.copy()
+    hub_df["Year"] = year
+    hub_df["Quarter"] = quarter
+    route_df["Year"] = year
+    route_df["Quarter"] = quarter
+    
+    if_exists = "replace" if replace else "append"
+    
+    hub_df.to_sql("hub_airline", conn, if_exists=if_exists, index=False)
+    route_df.to_sql("route_airline", conn, if_exists=if_exists, index=False)
+    
+    conn.close()
+    print(f"[saved] SQLite: {db_path} (hub: {len(hub_df):,} rows, route: {len(route_df):,} rows)")
+
+
+def period_tag(year: int, quarter: int) -> str:
+    return f"{year}_Q{quarter}"
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", type=str, default=None, help="Override default CSV path")
@@ -265,6 +354,11 @@ def main():
 
     ap.add_argument("--chunksize", type=int, default=750_000)
     ap.add_argument("--verbose", type=int, default=1)
+    
+    # Export options
+    ap.add_argument("--export_parquet", action="store_true", help="Export to Parquet format")
+    ap.add_argument("--export_sqlite", type=str, default=None, help="Export to SQLite database (provide path)")
+    ap.add_argument("--quality_report", action="store_true", help="Generate data quality report")
 
     args = ap.parse_args()
 
@@ -274,7 +368,7 @@ def main():
 
     print(f"[main] using CSV file: {csv_path}")
 
-    year, quarter, hub_airline, route_airline = ingest(
+    year, quarter, hub_airline, route_airline, total_seen, total_kept = ingest(
         csv_path=csv_path,
         fare_lower_bound=args.fare_lower_bound,
         fare_upper_bound=args.fare_upper_bound,
@@ -288,6 +382,7 @@ def main():
     hub_df = hub_airline_table(hub_airline)
     route_df = route_airline_table(route_airline)
 
+    # CSV exports (default)
     hub_out = f"hubxairline_{tag}.csv"
     route_out = f"routexairline_{tag}.csv"
 
@@ -300,6 +395,34 @@ def main():
     print(route_df.head(50).to_string(index=False))  #bug test preview
     route_df.to_csv(route_out, index=False)
     print(f"[saved] {route_out} ({len(route_df):,} rows)")
+
+    # Optional Parquet export
+    if args.export_parquet:
+        print("\n=== EXPORTING TO PARQUET ===")
+        export_to_parquet(hub_df, f"hubxairline_{tag}.parquet")
+        export_to_parquet(route_df, f"routexairline_{tag}.parquet")
+    
+    # Optional SQLite export
+    if args.export_sqlite:
+        print("\n=== EXPORTING TO SQLITE ===")
+        export_to_sqlite(hub_df, route_df, args.export_sqlite, year, quarter)
+    
+    # Optional quality report
+    if args.quality_report:
+        print("\n=== GENERATING QUALITY REPORT ===")
+        report = generate_quality_report(
+            year=year,
+            quarter=quarter,
+            total_seen=total_seen,
+            total_kept=total_kept,
+            hub_airline_count=len(hub_airline),
+            route_airline_count=len(route_airline),
+            fare_lower=args.fare_lower_bound,
+            fare_upper=args.fare_upper_bound,
+        )
+        report_path = f"quality_report_{tag}.json"
+        save_quality_report(report, report_path)
+        print(f"\nRetention Rate: {report['ingestion']['retention_rate']}%")
 
     print(f"\n[info] period used: Year={year}, Quarter={quarter}")
 

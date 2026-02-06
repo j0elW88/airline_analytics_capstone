@@ -11,6 +11,11 @@ To ALL:
 Before you begin we suggest you download any required Python Dependencies as well as the latest data from the Bureau of Transportation from the following link: 
 https://transtats.bts.gov/DL_SelectFields.aspx?gnoyr_VQ=FHK&QO_fu146_anzr=b4vtv0%20n0q%20Qr56v0n6v10%20f748rB 
 
+Dependecy Requirements:
+pandas >= 2.0.0
+numpy >= 1.24.0
+pyarrow >= 12.0.0
+
 Please Ensure you Select the Following Fields (Some May Be Unnecessary We Just Suggest You Do These For Now):
 
 * MKTID 
