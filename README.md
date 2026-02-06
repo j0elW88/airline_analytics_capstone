@@ -1,6 +1,54 @@
-Hello Blitz_Analytics,
+Hello!
 
-This file is a random markdown meant to try to explain FAQ and the structure of this program.
+Welcome to the Blitz Analytics - Airline Analytics Capstone Project!
+
+To Team:
+
+Please work in your own branch to avoid conflicting or overwriting main!
+
+To ALL: 
+
+Before you begin we suggest you download any required Python Dependencies as well as the latest data from the Bureau of Transportation from the following link: 
+https://transtats.bts.gov/DL_SelectFields.aspx?gnoyr_VQ=FHK&QO_fu146_anzr=b4vtv0%20n0q%20Qr56v0n6v10%20f748rB 
+
+Please Ensure you Select the Following Fields (Some May Be Unnecessary We Just Suggest You Do These For Now):
+
+* MKTID 
+* YEAR
+* QTR
+* ORIGINAIRPORTID
+* ORIGIN
+* ORIGINSTATE
+* ORIGINSTATENAME
+* DESTAIRPORTID
+* DEST
+* DESTSTATE
+* DESTSTATENAME
+* AIRPORTGROUP
+* WACGROUP
+* TKCARRIER
+* OPCARRIER
+* BULKFARE
+* PASSENGERS
+* MKTFARE
+* MKTMILESFLOWN
+* NONSTOPMILES
+
+Other Fields Are Optional But May Increase Your File Size!
+
+
+Alternatively, navigate to the Bureau of Labor Statistics Website -> Go to Aviation -> and click the D1B1 Data -> D1B1 Market Data   (Name may differ slightly)
+
+This file is approximately 1.6 GB so please allocate this space in your files adequately. 
+
+Also note that this project has not been finalized, so excuse our dust!
+
+We hope you find this tool helpful!
+
+====================================================================================================================================================================================
+To Those Whom This May Concern:
+
+This following is meant to try to explain FAQ and the structure of this program.
 
 Q. Whats with the CSVs?
 
@@ -54,8 +102,6 @@ Q. Are layovers counted in this data?
 Layovers are not counted in this data, instead we have opted to only count the flight from origin to dest, this may impact the avg distance weighted depending on the number of layovers typically taken, but this will be something we will discuss and figure out with our project advisor.
 
 
-
-
 ========================================================================================================
 
 Things to be done still:
@@ -97,3 +143,5 @@ route_all_periods.csv
 
 Compute growth/decline rates by:
 carrier, hub, route, region
+
+
