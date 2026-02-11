@@ -1,9 +1,8 @@
 import argparse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from collections import defaultdict
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, Optional
 import json
-from pathlib import Path
 import sqlite3
 
 import pandas as pd
@@ -48,6 +47,8 @@ RouteAirKey = Tuple[str, str, str]     #(origin, dest, carrier)
 def _wavg(sum_xw: float, sum_w: float) -> float:
     return (sum_xw / sum_w) if sum_w > 0 else float("nan")
 
+def period_tag(year: int, quarter: int) -> str:
+    return f"{year}_Q{quarter}"
 
 def _assert_required_cols(cols) -> None:
     required = {
@@ -252,10 +253,6 @@ def route_airline_table(route_airline: Dict[RouteAirKey, Agg]) -> pd.DataFrame:
         })
     df = pd.DataFrame(rows)
     return df.sort_values(["Origin", "Dest", "Carrier"]).reset_index(drop=True)
-
-def period_tag(year: int, quarter: int) -> str:
-    return f"{year}_Q{quarter}"
-
 
 def generate_quality_report(
     year: int,
