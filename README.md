@@ -106,6 +106,84 @@ Q. Are layovers counted in this data?
 
 Layovers are not counted in this data, instead we have opted to only count the flight from origin to dest, this may impact the avg distance weighted depending on the number of layovers typically taken, but this will be something we will discuss and figure out with our project advisor.
 
+Q. What is the difference between Hub X Airline and Route X Airline
+
+Hub measures an airlines prescence at a specific airport or "hub", regardless of the destination, therefore it measures all traffic that touches a given airport by a provider.
+Route measures an airlines prescence on a specific city-pair, for example, how dominant is American Airlines on the ATL-MIA route. 
+Therefore these two measure greatly different things, but are able to come from the same data set!S
+
+========================================================================================================
+
+Capstone_Analyze.py Functions: 
+Responsible for market power analysis, reading in the csvs created by capstone_parser.py and creating two files, hub hhi & mkt pwr and route hhi & mkt pwr. This program then outputs hub_market_power_year_Q#.csv and route_market_power_year_Q#.csv. 
+
+> Route-Level Calculations:
+
+For each route let m = (origin,dest)
+Let Q_im = passengers for airline i on route m
+P_im = passenger-weighted fare for airline i on route m
+
+Q_m_all = sum_k Q_km
+(includes invalid carriers such as "99")
+
+Q_m_valid = sum_{i in valid} Q_im
+(only real airlines)
+
+Market Share (includes valid airlines only):
+share_im = Q_im / Q_m_valid
+
+HHI:
+HHI_m = (sum_{i in valid} share_im^2) × 10000
+
+How to Interpret:
+
+If HHI < 1500 : market is competitive 
+If 1500 <= HHI <= 2500 : market is moderately concentrated
+If HHI > 2500 : market is highly concentrated
+
+
+Weighted Route Average Fare (includes invalid):
+Pbar_m_all = (sum_k P_km × Q_km) / Q_m_all
+
+Minimum Route Fare (includes invalid):
+Pmin_m_all = min_k P_km
+
+Markup Proxy (these are estimates not entirely accurate):
+markup_im = P_im − Pbar_m_all
+
+Lerner Proxy (these are estimates not entirely accurate):
+lerner_proxy_im = (P_im − Pmin_m_all) / P_im
+
+Note: 
+Invalid carriers are used for baseline price estimation
+Invalid carriers are NOT used in market share or HHI calculations
+
+ROUTE Columns: 
+Origin,Dest,Carrier,total_passengers,row_count,avg_fare_weighted,avg_distance_weighted,route_total_passengers_all,route_total_passengers_valid,carriers_on_route_all,carriers_on_route_valid,route_share,route_HHI,route_avg_fare_all,route_min_fare_all,markup_proxy_vs_route_avg,lerner_proxy_vs_route_min
+
+
+> Hub Level Calculations: 
+
+For each hub h = (Origin, OriginState):
+
+Let:
+Q_ih = total passengers for airline i at hub h
+
+Q_h_valid = sum_{i in valid} Q_ih
+
+Hub Share:
+share_ih = Q_ih / Q_h_valid
+
+Hub HHI:
+HHI_h = (sum_{i in valid} share_ih²) × 10000
+
+Hub HHI measures airline dominance at a specific airport.
+
+This allows identification of:
+Fortress hubs, Competitive airports, Dominant carriers
+
+HUB Columns:
+Origin,OriginState,Carrier,total_passengers,row_count,avg_fare_weighted,avg_distance_weighted,hub_total_passengers_all,hub_total_passengers_valid,carriers_at_hub_all,carriers_at_hub_valid,hub_share,hub_HHI,hub_avg_fare_all,hub_min_fare_all,markup_proxy_vs_hub_avg,lerner_proxy_vs_hub_min
 
 ========================================================================================================
 
@@ -149,4 +227,4 @@ route_all_periods.csv
 Compute growth/decline rates by:
 carrier, hub, route, region
 
-
+ 

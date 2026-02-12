@@ -2,7 +2,7 @@ import argparse
 import json
 import sqlite3
 from pathlib import Path
-from typing import Tuple, Optional, Set
+from typing import Tuple, Set
 
 import pandas as pd
 
@@ -11,11 +11,22 @@ import pandas as pd
 # Config / tokens
 # ----------------------------
 
-INVALID_CARRIERS: Set[str] = {"99", "00", "", "nan", "none", "null", "unknown", "UNK", "NaN", "None", "NULL", "Unknown"}
+INVALID_CARRIERS: Set[str] = {
+    "99", "00", "", "nan", "none", "null", "unknown", "unk"
+}
+INVALID_CARRIERS_LC = {t.lower() for t in INVALID_CARRIERS}
 
-# These are the columns your parse outputs already produce:
-ROUTE_REQUIRED = {"Origin", "Dest", "Carrier", "avg_fare_weighted", "avg_distance_weighted", "total_passengers", "row_count"}
-HUB_REQUIRED = {"Origin", "OriginState", "Carrier", "avg_fare_weighted", "avg_distance_weighted", "total_passengers", "row_count"}
+# Columns your parse outputs already produce
+ROUTE_REQUIRED = {
+    "Origin", "Dest", "Carrier",
+    "avg_fare_weighted", "avg_distance_weighted",
+    "total_passengers", "row_count"
+}
+HUB_REQUIRED = {
+    "Origin", "OriginState", "Carrier",
+    "avg_fare_weighted", "avg_distance_weighted",
+    "total_passengers", "row_count"
+}
 
 
 # ----------------------------
@@ -49,36 +60,34 @@ def normalize_carrier_col(df: pd.DataFrame, carrier_col: str = "Carrier") -> pd.
     return out
 
 
-def is_invalid_carrier_token(x: str) -> bool:
-    return str(x).strip().lower() in {t.lower() for t in INVALID_CARRIERS}
-
-
 def split_valid_invalid(df: pd.DataFrame, carrier_col: str = "Carrier") -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Returns: (valid_carriers_df, invalid_carriers_df)
-    invalid carriers are retained for baseline pricing but excluded from market power.
+
+    Invalid carriers are retained ONLY for baseline pricing (route/hub avg + min fare),
+    but excluded from market power (shares / HHI) and excluded from output rows.
     """
     out = normalize_carrier_col(df, carrier_col=carrier_col)
-    mask_invalid = out[carrier_col].astype(str).str.strip().str.lower().isin({t.lower() for t in INVALID_CARRIERS})
+    carrier_lc = out[carrier_col].astype(str).str.strip().str.lower()
+    mask_invalid = carrier_lc.isin(INVALID_CARRIERS_LC)
+
     invalid = out[mask_invalid].copy()
     valid = out[~mask_invalid].copy()
     return valid, invalid
 
 
 def safe_div(num: pd.Series, den: pd.Series) -> pd.Series:
-    return num / den.replace({0: pd.NA})
+    den = den.replace({0: pd.NA})
+    return num / den
 
 
 # ----------------------------
-# Core computations (with equations in comments)
+# Core computations (with equations)
 # ----------------------------
 
 def compute_route_market_power(route_df_all: pd.DataFrame, min_market_passengers: float = 0.0, verbose: int = 1) -> pd.DataFrame:
     """
-    Build one row per (Origin, Dest, Carrier) for VALID carriers only,
-    and attach market baselines (that may include INVALID carriers).
-
-    Notation airline _im means airline i in market m
+    Output rows: one per (Origin, Dest, Carrier) for VALID carriers only.
 
     Equations (for each route market m = (o,d)):
       Q_m_all   = sum_k Q_km                     (includes invalid)
@@ -95,21 +104,24 @@ def compute_route_market_power(route_df_all: pd.DataFrame, min_market_passengers
     """
     _assert_cols(route_df_all, ROUTE_REQUIRED, "route_df")
 
-    # Clean numeric issues
     df = route_df_all.copy()
     for c in ["avg_fare_weighted", "avg_distance_weighted", "total_passengers", "row_count"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
-    df = df.dropna(subset=["Origin", "Dest", "Carrier", "avg_fare_weighted", "total_passengers"])
-    df = df[(df["total_passengers"] > 0) & (df["avg_fare_weighted"] > 0)].copy()
 
-    # Split valid vs invalid carriers
+    df = df.dropna(subset=["Origin", "Dest", "Carrier", "avg_fare_weighted", "avg_distance_weighted", "total_passengers"])
+    df = df[
+        (df["total_passengers"] > 0) &
+        (df["avg_fare_weighted"] > 0) &
+        (df["avg_distance_weighted"] > 0)
+    ].copy()
+
     valid, invalid = split_valid_invalid(df, carrier_col="Carrier")
 
     if verbose:
         print(f"[route] rows: all={len(df):,} valid={len(valid):,} invalid={len(invalid):,}")
         print(f"[route] carriers: all={df['Carrier'].nunique():,} valid={valid['Carrier'].nunique():,} invalid={invalid['Carrier'].nunique():,}")
 
-    # ---- Market baselines (include invalid carriers) ----
+    # Baselines include invalid carriers
     df["fare_x_passengers"] = df["avg_fare_weighted"] * df["total_passengers"]
 
     market_all = df.groupby(["Origin", "Dest"], as_index=False).agg(
@@ -120,42 +132,38 @@ def compute_route_market_power(route_df_all: pd.DataFrame, min_market_passengers
     )
     market_all["route_avg_fare_all"] = market_all["route_fare_x_passengers_all"] / market_all["route_total_passengers_all"]
 
-    # ---- Market power denominator (valid-only) ----
+    # Denominator for shares is valid-only
     market_valid = valid.groupby(["Origin", "Dest"], as_index=False).agg(
         route_total_passengers_valid=("total_passengers", "sum"),
         carriers_on_route_valid=("Carrier", "nunique"),
     )
 
-    # Join baselines to valid rows
     m = valid.merge(market_all, on=["Origin", "Dest"], how="left").merge(market_valid, on=["Origin", "Dest"], how="left")
 
-    # Optional: drop markets below passenger threshold (based on ALL passengers, including invalid)
     if min_market_passengers and min_market_passengers > 0:
         before = len(m)
         m = m[m["route_total_passengers_all"] >= float(min_market_passengers)].copy()
         if verbose:
-            print(f"[route] applied min_market_passengers={min_market_passengers}: removed {before - len(m):,} rows")
+            print(f"[route] min_market_passengers={min_market_passengers}: removed {before - len(m):,} rows")
 
-    # shares (valid-only)
     # share_im = Q_im / Q_m_valid
     m["route_share"] = safe_div(m["total_passengers"], m["route_total_passengers_valid"]).astype(float)
 
-    # HHI per market (valid-only)
-    # HHI_m = sum_i share_im^2 * 10000
+    # HHI_m = (sum_i share_im^2) * 10000 (valid-only)
     m["route_share_sq"] = m["route_share"] ** 2
     hhi = m.groupby(["Origin", "Dest"], as_index=False).agg(route_HHI=("route_share_sq", "sum"))
     hhi["route_HHI"] = hhi["route_HHI"] * 10000.0
     m = m.merge(hhi, on=["Origin", "Dest"], how="left").drop(columns=["route_share_sq"])
 
-    # Markup proxy vs route avg (baseline includes invalid)
     # markup_im = P_im - Pbar_m_all
     m["markup_proxy_vs_route_avg"] = m["avg_fare_weighted"] - m["route_avg_fare_all"]
 
-    # Lerner proxy vs route min fare (baseline includes invalid)
-    # lerner_proxy = (P_im - Pmin_m_all)/P_im
-    m["lerner_proxy_vs_route_min"] = safe_div((m["avg_fare_weighted"] - m["route_min_fare_all"]), m["avg_fare_weighted"]).astype(float)
+    # lerner_proxy = (P_im - Pmin_m_all) / P_im
+    m["lerner_proxy_vs_route_min"] = safe_div(
+        (m["avg_fare_weighted"] - m["route_min_fare_all"]),
+        m["avg_fare_weighted"]
+    ).astype(float)
 
-    # Final selection / sort
     keep = [
         "Origin", "Dest", "Carrier",
         "total_passengers", "row_count",
@@ -167,16 +175,14 @@ def compute_route_market_power(route_df_all: pd.DataFrame, min_market_passengers
         "markup_proxy_vs_route_avg",
         "lerner_proxy_vs_route_min",
     ]
-    m = m[keep].sort_values(["Origin", "Dest", "Carrier"]).reset_index(drop=True)
-    return m
+    return m[keep].sort_values(["Origin", "Dest", "Carrier"]).reset_index(drop=True)
 
 
 def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: float = 0.0, verbose: int = 1) -> pd.DataFrame:
     """
-    Build one row per (Origin, OriginState, Carrier) for VALID carriers only,
-    and attach hub baselines (that may include INVALID carriers).
+    Output rows: one per (Origin, OriginState, Carrier) for VALID carriers only.
 
-    Equations (for each hub market m = (o,state)):
+    Equations (for each hub market m = (Origin, OriginState)):
       Q_m_all   = sum_k Q_km                     (includes invalid)
       Q_m_valid = sum_{i in valid} Q_im          (valid-only)
 
@@ -194,8 +200,13 @@ def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: fl
     df = hub_df_all.copy()
     for c in ["avg_fare_weighted", "avg_distance_weighted", "total_passengers", "row_count"]:
         df[c] = pd.to_numeric(df[c], errors="coerce")
-    df = df.dropna(subset=["Origin", "OriginState", "Carrier", "avg_fare_weighted", "total_passengers"])
-    df = df[(df["total_passengers"] > 0) & (df["avg_fare_weighted"] > 0)].copy()
+
+    df = df.dropna(subset=["Origin", "OriginState", "Carrier", "avg_fare_weighted", "avg_distance_weighted", "total_passengers"])
+    df = df[
+        (df["total_passengers"] > 0) &
+        (df["avg_fare_weighted"] > 0) &
+        (df["avg_distance_weighted"] > 0)
+    ].copy()
 
     valid, invalid = split_valid_invalid(df, carrier_col="Carrier")
 
@@ -203,7 +214,7 @@ def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: fl
         print(f"[hub] rows: all={len(df):,} valid={len(valid):,} invalid={len(invalid):,}")
         print(f"[hub] carriers: all={df['Carrier'].nunique():,} valid={valid['Carrier'].nunique():,} invalid={invalid['Carrier'].nunique():,}")
 
-    # Baselines include invalid
+    # Baselines include invalid carriers
     df["fare_x_passengers"] = df["avg_fare_weighted"] * df["total_passengers"]
 
     market_all = df.groupby(["Origin", "OriginState"], as_index=False).agg(
@@ -221,27 +232,29 @@ def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: fl
 
     m = valid.merge(market_all, on=["Origin", "OriginState"], how="left").merge(market_valid, on=["Origin", "OriginState"], how="left")
 
-    # Optional passenger threshold (based on ALL passengers)
     if min_market_passengers and min_market_passengers > 0:
         before = len(m)
         m = m[m["hub_total_passengers_all"] >= float(min_market_passengers)].copy()
         if verbose:
-            print(f"[hub] applied min_market_passengers={min_market_passengers}: removed {before - len(m):,} rows")
+            print(f"[hub] min_market_passengers={min_market_passengers}: removed {before - len(m):,} rows")
 
-    # hub_share = Q_im / Q_m_valid
+    # share_im = Q_im / Q_m_valid
     m["hub_share"] = safe_div(m["total_passengers"], m["hub_total_passengers_valid"]).astype(float)
 
-    # hub_HHI = sum_i hub_share^2 * 10000
+    # HHI_m = sum_i share_im^2 * 10000 (valid-only)
     m["hub_share_sq"] = m["hub_share"] ** 2
     hhi = m.groupby(["Origin", "OriginState"], as_index=False).agg(hub_HHI=("hub_share_sq", "sum"))
     hhi["hub_HHI"] = hhi["hub_HHI"] * 10000.0
     m = m.merge(hhi, on=["Origin", "OriginState"], how="left").drop(columns=["hub_share_sq"])
 
-    # markup = P_im - hub_avg_fare_all
+    # markup_im = P_im - Pbar_m_all
     m["markup_proxy_vs_hub_avg"] = m["avg_fare_weighted"] - m["hub_avg_fare_all"]
 
-    # lerner_proxy = (P_im - hub_min_fare_all)/P_im
-    m["lerner_proxy_vs_hub_min"] = safe_div((m["avg_fare_weighted"] - m["hub_min_fare_all"]), m["avg_fare_weighted"]).astype(float)
+    # lerner_proxy = (P_im - Pmin_m_all)/P_im
+    m["lerner_proxy_vs_hub_min"] = safe_div(
+        (m["avg_fare_weighted"] - m["hub_min_fare_all"]),
+        m["avg_fare_weighted"]
+    ).astype(float)
 
     keep = [
         "Origin", "OriginState", "Carrier",
@@ -254,12 +267,11 @@ def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: fl
         "markup_proxy_vs_hub_avg",
         "lerner_proxy_vs_hub_min",
     ]
-    m = m[keep].sort_values(["Origin", "OriginState", "Carrier"]).reset_index(drop=True)
-    return m
+    return m[keep].sort_values(["Origin", "OriginState", "Carrier"]).reset_index(drop=True)
 
 
 # ----------------------------
-# Export helpers (kept minimal)
+# Export helpers
 # ----------------------------
 
 def export_to_parquet(df: pd.DataFrame, output_path: str):
@@ -335,15 +347,16 @@ def main():
     ap.add_argument("--quarter", type=int, required=True)
     ap.add_argument("--dir", type=str, default=".")
     ap.add_argument("--min_market_passengers", type=float, default=0.0, help="Optional threshold per market (uses ALL passengers, includes invalid)")
+    ap.add_argument("--verbose", type=int, default=1)
+
+    # Base outputs
     ap.add_argument("--export_csv", action="store_true", help="Export route_market_power + hub_market_power CSVs")
 
-    # Optional exports (you can ignore these if you want)
+    # Optional exports
     ap.add_argument("--export_parquet", action="store_true", help="Export route/hub market power Parquet too")
     ap.add_argument("--export_sqlite", type=str, default=None, help="Export both tables to SQLite db path")
     ap.add_argument("--replace", action="store_true", help="SQLite: replace instead of append")
     ap.add_argument("--quality_report", action="store_true", help="Export a small JSON quality report")
-
-    ap.add_argument("--verbose", type=int, default=1)
 
     args = ap.parse_args()
 
@@ -357,20 +370,18 @@ def main():
     route_rows_in = len(route_df)
     hub_rows_in = len(hub_df)
 
-    # Count invalid rows (for reporting) BEFORE filtering output
+    # Count invalid rows for reporting (but keep them in baselines)
     _, route_invalid = split_valid_invalid(route_df, carrier_col="Carrier")
     _, hub_invalid = split_valid_invalid(hub_df, carrier_col="Carrier")
 
-    # Compute market power tables
     route_power = compute_route_market_power(route_df, min_market_passengers=args.min_market_passengers, verbose=args.verbose)
     hub_power = compute_hub_market_power(hub_df, min_market_passengers=args.min_market_passengers, verbose=args.verbose)
 
     tag = period_tag(args.year, args.quarter)
 
-    # Preview (small)
+    # Preview
     print("\n=== ROUTE MARKET POWER (preview 20) ===")
     print(route_power.head(20).to_string(index=False))
-
     print("\n=== HUB MARKET POWER (preview 20) ===")
     print(hub_power.head(20).to_string(index=False))
 
@@ -383,14 +394,14 @@ def main():
         print(f"\n[saved] {out_route} ({len(route_power):,} rows)")
         print(f"[saved] {out_hub} ({len(hub_power):,} rows)")
 
-    # Optional parquet
+    # Parquet outputs
     if args.export_parquet:
         out_route_p = Path(args.dir) / f"route_market_power_{tag}.parquet"
         out_hub_p = Path(args.dir) / f"hub_market_power_{tag}.parquet"
         export_to_parquet(route_power, str(out_route_p))
         export_to_parquet(hub_power, str(out_hub_p))
 
-    # Optional sqlite
+    # SQLite outputs
     if args.export_sqlite:
         export_to_sqlite_market_power(
             route_power=route_power,
@@ -401,7 +412,7 @@ def main():
             replace=args.replace,
         )
 
-    # Quality report
+    # Quality report JSON
     if args.quality_report:
         report = generate_quality_report(
             year=args.year,
