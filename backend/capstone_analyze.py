@@ -99,8 +99,6 @@ def compute_route_market_power(route_df_all: pd.DataFrame, min_market_passengers
       Pbar_m_all = (sum_k P_km * Q_km) / Q_m_all (includes invalid)
       Pmin_m_all = min_k P_km                    (includes invalid)
 
-      markup_im = P_im - Pbar_m_all
-      lerner_proxy_im = (P_im - Pmin_m_all) / P_im
     """
     _assert_cols(route_df_all, ROUTE_REQUIRED, "route_df")
 
@@ -155,14 +153,6 @@ def compute_route_market_power(route_df_all: pd.DataFrame, min_market_passengers
     hhi["route_HHI"] = hhi["route_HHI"] * 10000.0
     m = m.merge(hhi, on=["Origin", "Dest"], how="left").drop(columns=["route_share_sq"])
 
-    # markup_im = P_im - Pbar_m_all
-    m["markup_proxy_vs_route_avg"] = m["avg_fare_weighted"] - m["route_avg_fare_all"]
-
-    # lerner_proxy = (P_im - Pmin_m_all) / P_im
-    m["lerner_proxy_vs_route_min"] = safe_div(
-        (m["avg_fare_weighted"] - m["route_min_fare_all"]),
-        m["avg_fare_weighted"]
-    ).astype(float)
 
     keep = [
         "Origin", "Dest", "Carrier",
@@ -172,8 +162,6 @@ def compute_route_market_power(route_df_all: pd.DataFrame, min_market_passengers
         "carriers_on_route_all", "carriers_on_route_valid",
         "route_share", "route_HHI",
         "route_avg_fare_all", "route_min_fare_all",
-        "markup_proxy_vs_route_avg",
-        "lerner_proxy_vs_route_min",
     ]
     return m[keep].sort_values(["Origin", "Dest", "Carrier"]).reset_index(drop=True)
 
@@ -192,8 +180,6 @@ def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: fl
       Pbar_m_all = (sum_k P_km * Q_km) / Q_m_all (includes invalid)
       Pmin_m_all = min_k P_km                    (includes invalid)
 
-      markup_im = P_im - Pbar_m_all
-      lerner_proxy_im = (P_im - Pmin_m_all) / P_im
     """
     _assert_cols(hub_df_all, HUB_REQUIRED, "hub_df")
 
@@ -247,14 +233,6 @@ def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: fl
     hhi["hub_HHI"] = hhi["hub_HHI"] * 10000.0
     m = m.merge(hhi, on=["Origin", "OriginState"], how="left").drop(columns=["hub_share_sq"])
 
-    # markup_im = P_im - Pbar_m_all
-    m["markup_proxy_vs_hub_avg"] = m["avg_fare_weighted"] - m["hub_avg_fare_all"]
-
-    # lerner_proxy = (P_im - Pmin_m_all)/P_im
-    m["lerner_proxy_vs_hub_min"] = safe_div(
-        (m["avg_fare_weighted"] - m["hub_min_fare_all"]),
-        m["avg_fare_weighted"]
-    ).astype(float)
 
     keep = [
         "Origin", "OriginState", "Carrier",
@@ -264,8 +242,6 @@ def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: fl
         "carriers_at_hub_all", "carriers_at_hub_valid",
         "hub_share", "hub_HHI",
         "hub_avg_fare_all", "hub_min_fare_all",
-        "markup_proxy_vs_hub_avg",
-        "lerner_proxy_vs_hub_min",
     ]
     return m[keep].sort_values(["Origin", "OriginState", "Carrier"]).reset_index(drop=True)
 
