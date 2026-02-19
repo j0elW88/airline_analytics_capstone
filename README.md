@@ -149,17 +149,14 @@ Minimum Route Fare (includes invalid):
 Pmin_m_all = min_k P_km
 
 Markup Proxy (these are estimates not entirely accurate):
-markup_im = P_im − Pbar_m_all
 
-Lerner Proxy (these are estimates not entirely accurate):
-lerner_proxy_im = (P_im − Pmin_m_all) / P_im
 
 Note: 
 Invalid carriers are used for baseline price estimation
 Invalid carriers are NOT used in market share or HHI calculations
 
 ROUTE Columns: 
-Origin,Dest,Carrier,total_passengers,row_count,avg_fare_weighted,avg_distance_weighted,route_total_passengers_all,route_total_passengers_valid,carriers_on_route_all,carriers_on_route_valid,route_share,route_HHI,route_avg_fare_all,route_min_fare_all,markup_proxy_vs_route_avg,lerner_proxy_vs_route_min
+Origin,Dest,Carrier,total_passengers,row_count,avg_fare_weighted,avg_distance_weighted,route_total_passengers_all,route_total_passengers_valid,carriers_on_route_all,carriers_on_route_valid,route_share,route_HHI,route_avg_fare_all,route_min_fare_all
 
 
 > Hub Level Calculations: 
@@ -183,7 +180,7 @@ This allows identification of:
 Fortress hubs, Competitive airports, Dominant carriers
 
 HUB Columns:
-Origin,OriginState,Carrier,total_passengers,row_count,avg_fare_weighted,avg_distance_weighted,hub_total_passengers_all,hub_total_passengers_valid,carriers_at_hub_all,carriers_at_hub_valid,hub_share,hub_HHI,hub_avg_fare_all,hub_min_fare_all,markup_proxy_vs_hub_avg,lerner_proxy_vs_hub_min
+Origin,OriginState,Carrier,total_passengers,row_count,avg_fare_weighted,avg_distance_weighted,hub_total_passengers_all,hub_total_passengers_valid,carriers_at_hub_all,carriers_at_hub_valid,hub_share,hub_HHI,hub_avg_fare_all,hub_min_fare_all
 
 ========================================================================================================
 
