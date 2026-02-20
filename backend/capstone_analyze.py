@@ -6,6 +6,8 @@ from typing import Tuple, Set
 
 import pandas as pd
 
+from carrier_codes import get_carrier_name
+
 
 # ----------------------------
 # Config / tokens
@@ -153,9 +155,11 @@ def compute_route_market_power(route_df_all: pd.DataFrame, min_market_passengers
     hhi["route_HHI"] = hhi["route_HHI"] * 10000.0
     m = m.merge(hhi, on=["Origin", "Dest"], how="left").drop(columns=["route_share_sq"])
 
+    # import carrier name
+    m["carrier_name"] = m["Carrier"].apply(get_carrier_name)
 
     keep = [
-        "Origin", "Dest", "Carrier",
+        "Origin", "Dest", "Carrier", "carrier_name",
         "total_passengers", "row_count",
         "avg_fare_weighted", "avg_distance_weighted",
         "route_total_passengers_all", "route_total_passengers_valid",
@@ -233,9 +237,11 @@ def compute_hub_market_power(hub_df_all: pd.DataFrame, min_market_passengers: fl
     hhi["hub_HHI"] = hhi["hub_HHI"] * 10000.0
     m = m.merge(hhi, on=["Origin", "OriginState"], how="left").drop(columns=["hub_share_sq"])
 
+    #import carrier name
+    m["carrier_name"] = m["Carrier"].apply(get_carrier_name)
 
     keep = [
-        "Origin", "OriginState", "Carrier",
+        "Origin", "OriginState", "Carrier", "carrier_name",
         "total_passengers", "row_count",
         "avg_fare_weighted", "avg_distance_weighted",
         "hub_total_passengers_all", "hub_total_passengers_valid",
