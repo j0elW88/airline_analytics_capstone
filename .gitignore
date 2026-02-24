@@ -1,7 +1,10 @@
 __pycache__/
 *.pyc
 .env
+
+#Temporarily Removing 
 hubxairline_folder/
 routeMP_folder/
 routexairline_folder/
 hubMP_folder/
+
