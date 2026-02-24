@@ -2,9 +2,17 @@ __pycache__/
 *.pyc
 .env
 
+<<<<<<< HEAD
 #Temporarily Removing 
 hubxairline_folder/
 routeMP_folder/
 routexairline_folder/
 hubMP_folder/
 
+=======
+backend/hubMP_folder/
+backend/routeMP_folder/
+backend/hubxairline_folder/
+backend/routexairline_folder/
+backend/uploads/
+>>>>>>> 9947420 (Remove sample CSVs from tracking, add gitignore for data folders)
