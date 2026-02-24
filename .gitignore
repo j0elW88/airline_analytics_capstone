@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .env
+hubxairline_folder/
+routeMP_folder/
+routexairline_folder/
+hubMP_folder/
