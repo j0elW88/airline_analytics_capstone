@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Dict, Tuple, Optional
 import json
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 
@@ -27,7 +28,12 @@ COL_DISTANCE = "NonStopMiles"         # use NonStopMiles for end-to-end distance
 fare_upper_bound = 1200
 fare_lower_bound = 50
 
-#For Bug-testing (manually source file)
+BASE_DIR = Path(__file__).resolve().parent
+HUB_AIRLINE_DIR = BASE_DIR / "hubxairline_folder"
+ROUTE_AIRLINE_DIR = BASE_DIR / "routexairline_folder"
+UPLOADS_DIR = BASE_DIR / "uploads"
+
+# For manual bug-testing fallback when --csv and --year/--quarter are omitted.
 currentData = "Origin_and_Destination_Survey_DB1BMarket_2025_1.csv"
 
 #########################################################################################################################
@@ -49,6 +55,36 @@ def _wavg(sum_xw: float, sum_w: float) -> float:
 
 def period_tag(year: int, quarter: int) -> str:
     return f"{year}_Q{quarter}"
+
+
+def ensure_output_dirs() -> None:
+    HUB_AIRLINE_DIR.mkdir(parents=True, exist_ok=True)
+    ROUTE_AIRLINE_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def raw_filename(year: int, quarter: int) -> str:
+    return f"Origin_and_Destination_Survey_DB1BMarket_{year}_{quarter}.csv"
+
+
+def resolve_csv_path(
+    csv_arg: Optional[str],
+    year: Optional[int],
+    quarter: Optional[int],
+    uploads_dir: Path,
+) -> Path:
+    if csv_arg:
+        return Path(csv_arg)
+
+    if year is not None and quarter is not None:
+        candidate = uploads_dir / raw_filename(year, quarter)
+        if candidate.exists():
+            return candidate
+        raise FileNotFoundError(
+            f"Could not find raw file for Year={year}, Quarter={quarter} at: {candidate}. "
+            f"Either place it in uploads or pass --csv explicitly."
+        )
+
+    return Path(currentData)
 
 def _assert_required_cols(cols) -> None:
     required = {
@@ -342,6 +378,7 @@ def period_tag(year: int, quarter: int) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", type=str, default=None, help="Override default CSV path")
+    ap.add_argument("--uploads_dir", type=str, default=str(UPLOADS_DIR), help="Folder used to auto-find raw files by --year/--quarter")
     ap.add_argument("--fare_lower_bound", type=float, default=fare_lower_bound)
     ap.add_argument("--fare_upper_bound", type=float, default=fare_upper_bound)
 
@@ -360,13 +397,19 @@ def main():
     args = ap.parse_args()
 
 
-    # manual csv input for bug testing or disable to input your own.
-    csv_path = args.csv if args.csv is not None else currentData
+    # Resolve raw input path. If --csv is omitted, auto-find in uploads using --year/--quarter.
+    csv_path = resolve_csv_path(
+        csv_arg=args.csv,
+        year=args.year,
+        quarter=args.quarter,
+        uploads_dir=Path(args.uploads_dir),
+    )
+    ensure_output_dirs()
 
     print(f"[main] using CSV file: {csv_path}")
 
     year, quarter, hub_airline, route_airline, total_seen, total_kept = ingest(
-        csv_path=csv_path,
+        csv_path=str(csv_path),
         fare_lower_bound=args.fare_lower_bound,
         fare_upper_bound=args.fare_upper_bound,
         year=args.year,
@@ -380,8 +423,8 @@ def main():
     route_df = route_airline_table(route_airline)
 
     # CSV exports (default)
-    hub_out = f"hubxairline_{tag}.csv"
-    route_out = f"routexairline_{tag}.csv"
+    hub_out = HUB_AIRLINE_DIR / f"hubxairline_{tag}.csv"
+    route_out = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.csv"
 
     print("\n=== HUB × AIRLINE (Origin hub only; no layover hubs) ===")
     print(hub_df.head(50).to_string(index=False))  #bug test preview
@@ -396,8 +439,8 @@ def main():
     # Optional Parquet export
     if args.export_parquet:
         print("\n=== EXPORTING TO PARQUET ===")
-        export_to_parquet(hub_df, f"hubxairline_{tag}.parquet")
-        export_to_parquet(route_df, f"routexairline_{tag}.parquet")
+        export_to_parquet(hub_df, str(HUB_AIRLINE_DIR / f"hubxairline_{tag}.parquet"))
+        export_to_parquet(route_df, str(ROUTE_AIRLINE_DIR / f"routexairline_{tag}.parquet"))
     
     # Optional SQLite export
     if args.export_sqlite:

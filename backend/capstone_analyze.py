@@ -30,6 +30,12 @@ HUB_REQUIRED = {
     "total_passengers", "row_count"
 }
 
+BASE_DIR = Path(__file__).resolve().parent
+HUB_AIRLINE_DIR = BASE_DIR / "hubxairline_folder"
+ROUTE_AIRLINE_DIR = BASE_DIR / "routexairline_folder"
+HUB_MP_DIR = BASE_DIR / "hubMP_folder"
+ROUTE_MP_DIR = BASE_DIR / "routeMP_folder"
+
 
 # ----------------------------
 # Helpers
@@ -41,13 +47,26 @@ def period_tag(year: int, quarter: int) -> str:
 
 def find_outputs(year: int, quarter: int, directory: str = ".") -> Tuple[str, str]:
     tag = period_tag(year, quarter)
-    hub = Path(directory) / f"hubxairline_{tag}.csv"
-    route = Path(directory) / f"routexairline_{tag}.csv"
-    if not hub.exists():
-        raise FileNotFoundError(f"Missing file: {hub}")
-    if not route.exists():
-        raise FileNotFoundError(f"Missing file: {route}")
-    return str(hub), str(route)
+    hub = HUB_AIRLINE_DIR / f"hubxairline_{tag}.csv"
+    route = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.csv"
+    if hub.exists() and route.exists():
+        return str(hub), str(route)
+
+    # Backward-compatible fallback if files are not in foldered paths.
+    legacy_hub = Path(directory) / f"hubxairline_{tag}.csv"
+    legacy_route = Path(directory) / f"routexairline_{tag}.csv"
+    if not legacy_hub.exists():
+        raise FileNotFoundError(f"Missing file: {hub} (or legacy path {legacy_hub})")
+    if not legacy_route.exists():
+        raise FileNotFoundError(f"Missing file: {route} (or legacy path {legacy_route})")
+    return str(legacy_hub), str(legacy_route)
+
+
+def ensure_output_dirs() -> None:
+    HUB_AIRLINE_DIR.mkdir(parents=True, exist_ok=True)
+    ROUTE_AIRLINE_DIR.mkdir(parents=True, exist_ok=True)
+    HUB_MP_DIR.mkdir(parents=True, exist_ok=True)
+    ROUTE_MP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _assert_cols(df: pd.DataFrame, required: set, label: str) -> None:
@@ -332,7 +351,9 @@ def main():
     ap.add_argument("--verbose", type=int, default=1)
 
     # Base outputs
-    ap.add_argument("--export_csv", action="store_true", help="Export route_market_power + hub_market_power CSVs")
+    # CSV export is enabled by default. Use --no_export_csv to disable it.
+    ap.add_argument("--export_csv", dest="export_csv", action="store_true", default=True, help="Export route_market_power + hub_market_power CSVs (default: on)")
+    ap.add_argument("--no_export_csv", dest="export_csv", action="store_false", help="Disable CSV export")
 
     # Optional exports
     ap.add_argument("--export_parquet", action="store_true", help="Export route/hub market power Parquet too")
@@ -341,6 +362,7 @@ def main():
     ap.add_argument("--quality_report", action="store_true", help="Export a small JSON quality report")
 
     args = ap.parse_args()
+    ensure_output_dirs()
 
     hub_path, route_path = find_outputs(args.year, args.quarter, args.dir)
     print(f"[analyze] using hub:   {hub_path}")
@@ -369,8 +391,8 @@ def main():
 
     # CSV outputs
     if args.export_csv:
-        out_route = Path(args.dir) / f"route_market_power_{tag}.csv"
-        out_hub = Path(args.dir) / f"hub_market_power_{tag}.csv"
+        out_route = ROUTE_MP_DIR / f"route_market_power_{tag}.csv"
+        out_hub = HUB_MP_DIR / f"hub_market_power_{tag}.csv"
         route_power.to_csv(out_route, index=False)
         hub_power.to_csv(out_hub, index=False)
         print(f"\n[saved] {out_route} ({len(route_power):,} rows)")
@@ -378,8 +400,8 @@ def main():
 
     # Parquet outputs
     if args.export_parquet:
-        out_route_p = Path(args.dir) / f"route_market_power_{tag}.parquet"
-        out_hub_p = Path(args.dir) / f"hub_market_power_{tag}.parquet"
+        out_route_p = ROUTE_MP_DIR / f"route_market_power_{tag}.parquet"
+        out_hub_p = HUB_MP_DIR / f"hub_market_power_{tag}.parquet"
         export_to_parquet(route_power, str(out_route_p))
         export_to_parquet(hub_power, str(out_hub_p))
 
