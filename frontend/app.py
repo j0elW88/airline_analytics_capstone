@@ -104,9 +104,45 @@ def style_page() -> None:
     st.markdown(
         """
         <style>
-        .main .block-container {max-width: 900px; padding-top: 1rem;}
-        .error-period {color: #b00020; font-weight: 600;}
-        .ok-period {color: #106b21; font-weight: 600;}
+        /* Import a clean modern font */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        
+        html, body, [class*="css"] {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Main container styling */
+        .main .block-container {
+            max-width: 1100px;
+            padding-top: 2rem;
+            background-color: #F8FAFC;
+        }
+
+        /* Custom Card UI */
+        .nav-card {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+            margin-bottom: 1rem;
+        }
+        
+        /* Metric Styling */
+        [data-testid="stMetricValue"] {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1E293B;
+        }
+
+        /* Sidebar and Buttons */
+        .stButton>button {
+            border-radius: 8px;
+            font-weight: 600;
+            text-transform: none;
+            letter-spacing: 0.2px;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -122,22 +158,56 @@ def top_nav() -> None:
 
 
 def screen_home() -> None:
-    st.title("Airline Analytics")
-    st.subheader("Home")
+    
+    st.markdown("""
+        <div style="text-align: center; padding: 2rem 0rem;">
+            <h1 style="font-size: 3rem; color: #1E3A8A;">FlightPower Analytics</h1>
+            <p style="font-size: 1.2rem; color: #64748B;">
+                Quantifying Market Concentration and Pricing Strategies in US Aviation
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    
+    periods = collect_periods()
+    total_periods = len(periods)
+    ready_periods = sum(1 for p in periods.values() if is_complete(p))
+    
+    col_a, col_b, col_c = st.columns(3)
+    col_a.metric("Total Datasets", total_periods)
+    col_b.metric("Ready for Analysis", ready_periods)
+    col_c.metric("System Status", "Operational", delta="Active")
+
+    st.divider()
+
+    
+    st.subheader("Core Modules")
     c1, c2, c3 = st.columns(3)
+
     with c1:
-        if st.button("History", use_container_width=True):
-            nav_to("history")
-            st.rerun()
-    with c2:
-        if st.button("Loaded Data Sets", use_container_width=True):
+        st.info("### 📂 Data Management")
+        st.write("Upload raw DB1B Market CSVs, clean outliers, and prepare summary tables.")
+        if st.button("Manage Datasets", use_container_width=True):
             nav_to("loaded")
             st.rerun()
-    with c3:
-        if st.button("Start", type="primary", use_container_width=True):
+
+    with c2:
+        st.success("### 📊 Market Analysis")
+        st.write("Calculate HHI, market shares, and pricing power for Hubs and Routes.")
+        if st.button("Launch Analytics", type="primary", use_container_width=True):
             nav_to("start")
             st.rerun()
 
+    with c3:
+        st.warning("### 🕒 Session History")
+        st.write("Review your recent activity and previously generated reports.")
+        if st.button("View History", use_container_width=True):
+            nav_to("history")
+            st.rerun()
+
+    # 4. Footer Info
+    st.markdown("---")
+    st.caption("Capstone Project — Data Source: Bureau of Transportation Statistics (DB1B Survey)")
 
 def screen_history() -> None:
     st.subheader("History")
