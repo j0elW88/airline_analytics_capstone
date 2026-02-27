@@ -852,6 +852,9 @@ def screen_history() -> None:
     if not st.session_state.history:
         st.info("No datasets viewed yet.")
         return
+    if st.button("Clear History"):
+        st.session_state.history = []
+        st.rerun()
     for idx, event in enumerate(st.session_state.history, 1):
         st.write(f"{idx}. {event}")
 
