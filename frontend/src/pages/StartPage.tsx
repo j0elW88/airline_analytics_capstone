@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file src/pages/StartPage.tsx
  * @description Primary start screen with branded header and workflow action buttons.
  */
@@ -40,8 +40,3 @@ export function StartPage({ onAnalyzeOne, onAnalyzeMulti, onLoad }: StartPagePro
     </main>
   );
 }
-
-
-
-
-

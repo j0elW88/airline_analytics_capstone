@@ -15,7 +15,7 @@ import { LoadDatasetPage } from "../pages/LoadDatasetPage";
 import { ResultsMultiPage } from "../pages/ResultsMultiPage";
 import { ResultsOnePage } from "../pages/ResultsOnePage";
 import { StartPage } from "../pages/StartPage";
-import { fetchLocalDataset, fetchLocalPeriods, importRawDb1b } from "../services/localBackend";
+import { ImportRawError, fetchLocalDataset, fetchLocalPeriods, importRawDb1b } from "../services/localBackend";
 import type { HubMarketPowerRow, RouteMarketPowerRow } from "../types/data";
 import { getCompletePeriods, getSortedPeriods, useAppState } from "./state";
 
@@ -115,8 +115,15 @@ export function App() {
 
   async function importRawFile(file: File) {
     // Send raw DB1B csv to dev bridge, then import the generated analyzed period.
-    const period = await importRawDb1b(file);
-    await importExistingPeriod(period);
+    try {
+      const period = await importRawDb1b(file);
+      await importExistingPeriod(period);
+    } catch (error) {
+      if (error instanceof ImportRawError && error.errorType === "verification") {
+        throw new Error(`VERIFICATION_FAILED::${error.message}`);
+      }
+      throw error;
+    }
   }
 
   function renderCurrentScreen() {
@@ -141,13 +148,20 @@ export function App() {
           <LoadDatasetPage
             onImportRaw={importRawFile}
             onImportExisting={importExistingPeriod}
-            onImportFailed={(message) =>
-              openModal({
-                title: "Import Failed",
-                message,
+            onImportFailed={(message) => {
+              const isVerificationFailure =
+                message.startsWith("VERIFICATION_FAILED::") || message.startsWith("VERIFICATION_FAILED");
+
+              const cleanMessage = isVerificationFailure
+                ? message.replace(/^VERIFICATION_FAILED::?/, "").trim()
+                : message;
+
+              return openModal({
+                title: isVerificationFailure ? "Verification Failed" : "Import Failed",
+                message: cleanMessage,
                 actions: [{ label: "Close", kind: "danger", onClick: closeModal }],
-              })
-            }
+              });
+            }}
           />
         );
       case "analyze_one":

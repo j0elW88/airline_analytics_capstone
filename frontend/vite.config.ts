@@ -16,6 +16,15 @@ const UPLOADS_DIR = path.join(BACKEND_ROOT, "uploads");
 
 const ROUTE_PATTERN = /^route_market_power_(\d{4}_Q[1-4])\.csv$/i;
 const HUB_PATTERN = /^hub_market_power_(\d{4}_Q[1-4])\.csv$/i;
+const VERIFICATION_FAILURE_PATTERNS = [
+  /missing required columns/i,
+  /could not detect year\/quarter/i,
+  /multiple year\/quarter values/i,
+  /missing file:/i,
+  /filenotfounderror/i,
+  /valueerror/i,
+  /could not find raw file/i,
+];
 
 function json(res: any, status: number, payload: unknown) {
   res.statusCode = status;
@@ -36,9 +45,18 @@ function sanitizeFilename(input: string): string {
   return base.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+function isBackendVerificationFailure(output: string): boolean {
+  const text = String(output ?? "");
+  return VERIFICATION_FAILURE_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 function runCommand(command: string, args: string[], cwd: string): Promise<{ code: number; output: string }> {
   return new Promise((resolve) => {
-    const proc = spawn(command, args, { cwd, shell: true });
+    const proc = spawn(command, args, {
+      cwd,
+      shell: false,
+      windowsHide: true,
+    });
     let output = "";
 
     proc.stdout.on("data", (chunk) => {
@@ -49,6 +67,12 @@ function runCommand(command: string, args: string[], cwd: string): Promise<{ cod
     });
     proc.on("close", (code) => {
       resolve({ code: code ?? 1, output });
+    });
+    proc.on("error", (error) => {
+      resolve({
+        code: 1,
+        output: `${output}\n${String(error?.message ?? error)}`.trim(),
+      });
     });
   });
 }
@@ -193,8 +217,12 @@ function localDataPlugin(): Plugin {
               BACKEND_ROOT,
             );
             if (parseResult.code !== 0) {
-              json(res, 400, {
+              const errorType = isBackendVerificationFailure(parseResult.output) ? "verification" : "execution";
+              const status = errorType === "verification" ? 422 : 400;
+              json(res, status, {
                 error: `capstone_parse failed:\n${parseResult.output}`,
+                errorType,
+                stage: "parse",
               });
               return;
             }
@@ -228,8 +256,12 @@ function localDataPlugin(): Plugin {
               BACKEND_ROOT,
             );
             if (analyzeResult.code !== 0) {
-              json(res, 500, {
+              const errorType = isBackendVerificationFailure(analyzeResult.output) ? "verification" : "execution";
+              const status = errorType === "verification" ? 422 : 500;
+              json(res, status, {
                 error: `capstone_analyze failed:\n${analyzeResult.output}`,
+                errorType,
+                stage: "analyze",
               });
               return;
             }
