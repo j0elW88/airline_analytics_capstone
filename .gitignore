@@ -25,3 +25,6 @@ env/
 
 #jetbrains and pycharm
 .idea/
+
+
+node_modules/
