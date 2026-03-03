@@ -1,0 +1,93 @@
+﻿/* @file src/styles/theme.css
+ * @description Theme tokens and CSS variables for colors, spacing, and typography.
+ */
+
+:root {
+  --radius: 6px;
+  --radius-base: 5px;
+
+  --background: #eef5ff;
+  --foreground: #1e2a3a;
+
+  --card: #fdfefe;
+  --card-foreground: #1e2a3a;
+
+  --popover: #ffffff;
+  --popover-foreground: #1e2a3a;
+
+  --primary: #2f6fbf;
+  --primary-foreground: #ffffff;
+
+  --secondary: #dfeafa;
+  --secondary-foreground: #1e3655;
+
+  --muted: #e8eef5;
+  --muted-foreground: #647487;
+
+  --accent: #c7dbf5;
+  --accent-foreground: #183253;
+
+  --destructive: #b54a35;
+  --destructive-foreground: #ffffff;
+
+  --border: #c8d6e6;
+  --input: #d4deea;
+  --ring: #2f6fbf;
+
+  --chart-1: #2f6fbf;
+  --chart-2: #4d87cf;
+  --chart-3: #71a0de;
+  --chart-4: #8eb5e8;
+  --chart-5: #aac9f1;
+
+  --sidebar: #f2f6fc;
+  --sidebar-foreground: #1e2a3a;
+  --sidebar-primary: #2f6fbf;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #d9e7f9;
+  --sidebar-accent-foreground: #1e3655;
+  --sidebar-border: #c8d6e6;
+  --sidebar-ring: #2f6fbf;
+
+  --font-mono: "IBM Plex Mono", monospace;
+  --font-sans: "Libre Baskerville", Georgia, serif;
+  --font-serif: "Lora", Georgia, serif;
+
+  --shadow-color: 211 37% 32%;
+  --shadow-opacity: 0.12;
+
+  /* Button system inspired by neobrutalist style reference */
+  --main: #88aaee;
+  --bg: #dfe5f2;
+  --bw: #ffffff;
+  --blank: #000000;
+  --text: #000000;
+  --mtext: #000000;
+  --ring-offset: #ffffff;
+  --box-shadow-x: 4px;
+  --box-shadow-y: 4px;
+  --reverse-box-shadow-x: -4px;
+  --reverse-box-shadow-y: -4px;
+  --button-shadow: var(--box-shadow-x) var(--box-shadow-y) 0 0 var(--blank);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--foreground);
+  background: var(--background);
+}
+
+
+
+

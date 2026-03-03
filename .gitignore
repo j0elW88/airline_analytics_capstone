@@ -2,14 +2,7 @@ __pycache__/
 *.pyc
 .env
 
-<<<<<<< HEAD
-#Temporarily Removing 
-hubxairline_folder/
-routeMP_folder/
-routexairline_folder/
-hubMP_folder/
-
-=======
+#Temporarily Remove so Github doesn't flood
 backend/hubMP_folder/
 backend/routeMP_folder/
 backend/hubxairline_folder/

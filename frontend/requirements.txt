@@ -1,3 +1,8 @@
+# React frontend does not require Python packages.
+# Install frontend dependencies with: npm install
+#
+# Legacy-only (optional): if you still run frontend/app.py for reference,
+# install these historical Streamlit dependencies.
 streamlit>=1.32.0
 pandas>=2.0.0
 plotly>=5.0.0
