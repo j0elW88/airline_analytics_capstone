@@ -418,6 +418,12 @@ def main():
         verbose=args.verbose,
     )
 
+    #drop carriers from both tables if passengers <1000
+    #this happens before data is inially shown thru frontend
+    #filter ui might be better if remaining carriers drops too low for analysis
+    hub_airline   = {k: v for k, v in hub_airline.items()   if v.passengers_sum >= 1000}
+    route_airline = {k: v for k, v in route_airline.items() if v.passengers_sum >= 1000}
+
     tag = period_tag(year, quarter)
     hub_df = hub_airline_table(hub_airline)
     route_df = route_airline_table(route_airline)
