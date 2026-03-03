@@ -24,6 +24,22 @@ interface ImportRawResponse {
   period: string;
 }
 
+export class ImportRawError extends Error {
+  readonly errorType: "verification" | "execution" | "unknown";
+  readonly stage: "parse" | "analyze" | "unknown";
+
+  constructor(
+    message: string,
+    errorType: "verification" | "execution" | "unknown",
+    stage: "parse" | "analyze" | "unknown",
+  ) {
+    super(message);
+    this.name = "ImportRawError";
+    this.errorType = errorType;
+    this.stage = stage;
+  }
+}
+
 export async function fetchLocalPeriods(): Promise<string[]> {
   // Reads available analyzed periods from Vite local API bridge.
   const response = await fetch("/api/local/periods");
@@ -89,15 +105,27 @@ export async function importRawDb1b(file: File): Promise<string> {
   if (!response.ok) {
     // Bubble backend/import errors up to UI modal as human-readable text.
     let message = "Raw import failed.";
+    let errorType: "verification" | "execution" | "unknown" = "unknown";
+    let stage: "parse" | "analyze" | "unknown" = "unknown";
     try {
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as {
+        error?: string;
+        errorType?: "verification" | "execution";
+        stage?: "parse" | "analyze";
+      };
       if (payload.error) {
         message = payload.error;
+      }
+      if (payload.errorType === "verification" || payload.errorType === "execution") {
+        errorType = payload.errorType;
+      }
+      if (payload.stage === "parse" || payload.stage === "analyze") {
+        stage = payload.stage;
       }
     } catch {
       // Keep fallback message.
     }
-    throw new Error(message);
+    throw new ImportRawError(message, errorType, stage);
   }
 
   const data = (await response.json()) as ImportRawResponse;

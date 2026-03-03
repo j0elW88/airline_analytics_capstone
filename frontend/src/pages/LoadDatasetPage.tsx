@@ -22,11 +22,23 @@ export function LoadDatasetPage({
   // Raw DB1B upload state.
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [isProcessingRaw, setIsProcessingRaw] = useState(false);
+  const [rawElapsedSeconds, setRawElapsedSeconds] = useState(0);
 
   // Existing period import state (backend-generated route/hub outputs).
   const [localPeriods, setLocalPeriods] = useState<string[]>([]);
   const [selectedLocalPeriod, setSelectedLocalPeriod] = useState("");
   const [isLoadingExisting, setIsLoadingExisting] = useState(false);
+
+  useEffect(() => {
+    if (!isProcessingRaw) {
+      setRawElapsedSeconds(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setRawElapsedSeconds((previous) => previous + 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isProcessingRaw]);
 
   useEffect(() => {
     let active = true;
@@ -93,9 +105,6 @@ export function LoadDatasetPage({
       <section className="card">
         <header className="card__header">
           <h3 className="card__title">Primary Flow: Raw DB1B Upload</h3>
-          <p className="card__subtitle">
-            No Year/Quarter input needed. File is validated by parser, then analyzer runs automatically.
-          </p>
         </header>
         <div className="card__body">
           <section className="form-grid">
@@ -118,6 +127,11 @@ export function LoadDatasetPage({
               {isProcessingRaw ? "Running Parse + Analyze..." : "Upload and Process"}
             </AppButton>
           </div>
+          {isProcessingRaw ? (
+            <p className="load-import-status" aria-live="polite">
+              Your File Is Being Processed... {rawElapsedSeconds}s elapsed.
+            </p>
+          ) : null}
         </div>
       </section>
 
