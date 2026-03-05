@@ -11,19 +11,25 @@ import type {
 } from "../../types/data";
 import { normalizeCarrierCode } from "../../utils/carrierDisplay";
 import { formatRouteDisplay } from "../../utils/airports";
+import {
+  matchesAirportToSelection,
+  parseLocationSelection,
+} from "../../utils/locationTaxonomy";
 import { roundToNearest } from "../../utils/format";
 
 export function applyRouteFilters(rows: RouteMarketPowerRow[], filters: RouteFilters): RouteMarketPowerRow[] {
   // Applies origin/destination/carrier constraints to route rows.
+  const originSelection = parseLocationSelection(filters.origin);
+  const destSelection = parseLocationSelection(filters.dest);
   return rows.filter((row) => {
     if (!row) {
       return false;
     }
     const carrierCode = normalizeCarrierCode(row.Carrier);
-    if (filters.origin && row.Origin !== filters.origin) {
+    if (!matchesAirportToSelection(row.Origin, originSelection)) {
       return false;
     }
-    if (filters.dest && row.Dest !== filters.dest) {
+    if (!matchesAirportToSelection(row.Dest, destSelection)) {
       return false;
     }
     if (filters.carrier && carrierCode !== normalizeCarrierCode(filters.carrier)) {
@@ -212,6 +218,8 @@ export function getFareValues(rows: RouteMarketPowerRow[]): number[] {
 export interface FareDistributionPoint {
   value: number;
   carrier: string;
+  origin: string;
+  dest: string;
   weight: number;
 }
 
@@ -222,9 +230,17 @@ export function getFareDistributionPoints(rows: RouteMarketPowerRow[]): FareDist
     .map((row) => ({
       value: row.avg_fare_weighted,
       carrier: normalizeCarrierCode(row.Carrier),
+      origin: String(row.Origin || "").trim().toUpperCase(),
+      dest: String(row.Dest || "").trim().toUpperCase(),
       weight: Number.isFinite(row.total_passengers) && row.total_passengers > 0 ? row.total_passengers : 1,
     }))
-    .filter((point) => Number.isFinite(point.value) && point.value > 0 && point.carrier.length > 0);
+    .filter((point) => (
+      Number.isFinite(point.value)
+      && point.value > 0
+      && point.carrier.length > 0
+      && point.origin.length === 3
+      && point.dest.length === 3
+    ));
 }
 
 export type SelectionMode =

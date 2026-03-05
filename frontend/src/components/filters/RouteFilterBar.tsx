@@ -6,7 +6,10 @@
 import type { RouteFilters, RouteMarketPowerRow } from "../../types/data";
 import { useCarrierLookup } from "../../hooks/useCarrierLookup";
 import { getCarrierDisplayName, normalizeCarrierCode } from "../../utils/carrierDisplay";
-import { getAirportDisplayName } from "../../utils/airports";
+import {
+  buildLocationSelectOptions,
+  normalizeLocationSelectionValue,
+} from "../../utils/locationTaxonomy";
 
 interface RouteFilterBarProps {
   filters: RouteFilters;
@@ -35,6 +38,10 @@ export function RouteFilterBar({
   const origins = unique(rows.map((row) => row.Origin));
   const dests = unique(rows.map((row) => row.Dest));
   const carrierCodes = unique(rows.map((row) => normalizeCarrierCode(row.Carrier)));
+  const originOptions = buildLocationSelectOptions(origins, "All Origins");
+  const destinationOptions = buildLocationSelectOptions(dests, "All Destinations");
+  const selectedOriginValue = normalizeLocationSelectionValue(filters.origin);
+  const selectedDestinationValue = normalizeLocationSelectionValue(filters.dest);
 
   return (
     <section className="filter-grid">
@@ -50,13 +57,12 @@ export function RouteFilterBar({
         <label>
           Origin
           <select
-            value={filters.origin}
+            value={selectedOriginValue}
             onChange={(event) => onChange({ ...filters, origin: event.target.value })}
           >
-            <option value="">All Origins</option>
-            {origins.map((value) => (
-              <option key={value} value={value}>
-                {getAirportDisplayName(value)}
+            {originOptions.map((option) => (
+              <option key={option.value || "__all_origin__"} value={option.value} disabled={option.disabled}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -66,13 +72,12 @@ export function RouteFilterBar({
         <label>
           Destination
           <select
-            value={filters.dest}
+            value={selectedDestinationValue}
             onChange={(event) => onChange({ ...filters, dest: event.target.value })}
           >
-            <option value="">All Destinations</option>
-            {dests.map((value) => (
-              <option key={value} value={value}>
-                {getAirportDisplayName(value)}
+            {destinationOptions.map((option) => (
+              <option key={option.value || "__all_dest__"} value={option.value} disabled={option.disabled}>
+                {option.label}
               </option>
             ))}
           </select>
