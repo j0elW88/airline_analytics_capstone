@@ -24,7 +24,7 @@
 
 .page-shell {
   min-height: calc(100vh - 48px);
-  padding: 28px 16px;
+  padding: 20px 12px;
   display: flex;
   justify-content: center;
 }
@@ -36,7 +36,8 @@
 }
 
 .page-shell__content {
-  width: min(1240px, 100%);
+  width: min(1120px, 100%);
+  min-width: 0;
 }
 
 .page-shell__header {
@@ -48,13 +49,13 @@
   border-radius: var(--radius-base);
   background: var(--bw);
   box-shadow: var(--button-shadow);
-  margin-bottom: 16px;
-  padding: 14px 16px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
 }
 
 .page-shell__header h1 {
   margin: 0;
-  font-size: 1.6rem;
+  font-size: 1.35rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text);
@@ -296,9 +297,9 @@
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .form-grid label,
@@ -326,23 +327,23 @@ select {
 
 .filter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   padding: 12px;
   border: 2px solid var(--blank);
   border-radius: var(--radius-base);
   background: var(--bw);
   box-shadow: var(--button-shadow);
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .filter-grid--hub {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
   gap: 10px;
 }
 
@@ -379,6 +380,7 @@ select {
   background: var(--card);
   border-radius: var(--radius-base);
   box-shadow: var(--button-shadow);
+  min-width: 0;
 }
 
 .card__header {
@@ -388,7 +390,7 @@ select {
   gap: 12px;
   border-bottom: 2px solid var(--blank);
   background: color-mix(in srgb, var(--main) 32%, var(--bw));
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 
 .card__header-main {
@@ -402,23 +404,27 @@ select {
 
 .card__title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.88rem;
   color: var(--text);
 }
 
 .card__subtitle {
   margin: 6px 0 0;
-  font-size: 0.85rem;
+  font-size: 0.72rem;
   color: var(--muted-foreground);
 }
 
 .card__body {
-  padding: 14px;
+  padding: 10px;
 }
 
 .panel-grid {
   display: grid;
-  gap: 14px;
+  gap: 10px;
+}
+
+.panel-grid > * {
+  min-width: 0;
 }
 
 .selection-card {
@@ -428,15 +434,19 @@ select {
 .two-col {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
+}
+
+.two-col > * {
+  min-width: 0;
 }
 
 .chart-card .card__body {
-  min-height: 240px;
+  min-height: 200px;
 }
 
 .chart-card .card__subtitle {
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   margin-top: 4px;
 }
 
@@ -454,7 +464,7 @@ select {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 0.84rem;
+  font-size: 0.74rem;
 }
 
 .bar-chart__track {
@@ -470,22 +480,28 @@ select {
 }
 
 .histogram {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
-  gap: 8px;
-  align-items: end;
-  min-height: 210px;
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  min-height: 190px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 0 2px;
+  max-width: 100%;
 }
 
 .histogram__bar-wrap {
+  flex: 1 0 clamp(40px, 5vw, 60px);
+  min-width: clamp(40px, 5vw, 60px);
+  max-width: 88px;
   display: grid;
   grid-template-rows: 1fr auto;
-  gap: 6px;
+  gap: 4px;
   align-items: stretch;
 }
 
 .histogram__bar-track {
-  height: 170px;
+  height: 132px;
   display: flex;
   align-items: flex-end;
 }
@@ -498,9 +514,22 @@ select {
 }
 
 .histogram__label {
-  font-size: 0.68rem;
+  font-size: 0.46rem;
   color: var(--muted-foreground);
-  line-height: 1.2;
+  line-height: 1.08;
+  text-align: center;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+}
+
+.histogram-card .card__title {
+  font-size: 0.82rem;
+}
+
+.histogram-card .card__subtitle {
+  font-size: 0.6rem;
 }
 
 .tabs {
@@ -534,28 +563,30 @@ select {
 }
 
 .table-wrap {
+  max-width: 100%;
   overflow-x: auto;
 }
 
 .data-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
-  font-size: 0.84rem;
+  font-size: 0.68rem;
 }
 
 .data-table th,
 .data-table td {
   border-bottom: 1px solid color-mix(in srgb, var(--blank) 26%, var(--bw));
   text-align: left;
-  padding: 8px;
+  padding: 3px 4px;
   white-space: nowrap;
 }
 
 .data-table th {
   color: var(--text);
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  font-size: 0.56rem;
   background: color-mix(in srgb, var(--main) 28%, var(--bw));
 }
 
@@ -780,6 +811,12 @@ select {
   font-weight: 600;
   color: var(--muted-foreground);
   text-align: center;
+}
+
+.load-import-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-start;
 }
 
 @media (max-width: 900px) {

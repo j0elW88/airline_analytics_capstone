@@ -18,6 +18,7 @@ interface SimpleBarChartProps {
   rows: BarDatum[];
   color?: string;
   valueLabel?: string;
+  valueFormatter?: (value: number) => string;
   headerRight?: ReactNode;
 }
 
@@ -27,6 +28,7 @@ export function SimpleBarChart({
   rows,
   color = "var(--chart-1)",
   valueLabel,
+  valueFormatter,
   headerRight,
 }: SimpleBarChartProps) {
   const maxValue = Math.max(...rows.map((item) => item.value), 0);
@@ -43,7 +45,11 @@ export function SimpleBarChart({
               <div key={row.label} className="bar-chart__row">
                 <div className="bar-chart__meta">
                   <span>{row.label}</span>
-                  <span>{formatNumber(row.value)}{valueLabel ? ` ${valueLabel}` : ""}</span>
+                  <span>
+                    {valueFormatter
+                      ? valueFormatter(row.value)
+                      : `${formatNumber(row.value)}${valueLabel ? ` ${valueLabel}` : ""}`}
+                  </span>
                 </div>
                 <div className="bar-chart__track">
                   <div className="bar-chart__fill" style={{ width, background: color }} />

@@ -23,6 +23,7 @@ export const CARRIER_NAME_BY_CODE: Record<string, string> = {
   WA: "Western Airlines",
   OO: "SkyWest Airlines",
   MQ: "Envoy Air",
+  MX: "Breeze Airways",
   YX: "Republic Airways",
   "9E": "Endeavor Air",
   OH: "PSA Airlines",

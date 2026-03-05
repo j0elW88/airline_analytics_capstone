@@ -33,6 +33,7 @@ export function MarketOverviewPanel({ rows }: MarketOverviewPanelProps) {
     ...item,
     label: getCarrierDisplayName(item.label, carrierLookup),
   }));
+  const formatCarrierShare = (value: number) => (value > 0 && value < 1 ? "< 1%" : `${formatNumber(value)} %`);
 
   return (
     <section className="panel-grid">
@@ -44,7 +45,7 @@ export function MarketOverviewPanel({ rows }: MarketOverviewPanelProps) {
       </div>
 
       <div className="two-col">
-        <SimpleBarChart title="Market Share by Carrier (%)" rows={shareBars} valueLabel="%" />
+        <SimpleBarChart title="Market Share by Carrier (%)" rows={shareBars} valueFormatter={formatCarrierShare} />
         <SimpleBarChart title="Average Fare by Carrier" rows={fareBars} color="var(--chart-2)" />
       </div>
     </section>

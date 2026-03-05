@@ -6,6 +6,7 @@
 import type { RouteFilters, RouteMarketPowerRow } from "../../types/data";
 import { useCarrierLookup } from "../../hooks/useCarrierLookup";
 import { getCarrierDisplayName, normalizeCarrierCode } from "../../utils/carrierDisplay";
+import { getAirportDisplayName } from "../../utils/airports";
 
 interface RouteFilterBarProps {
   filters: RouteFilters;
@@ -55,7 +56,7 @@ export function RouteFilterBar({
             <option value="">All Origins</option>
             {origins.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {getAirportDisplayName(value)}
               </option>
             ))}
           </select>
@@ -71,7 +72,7 @@ export function RouteFilterBar({
             <option value="">All Destinations</option>
             {dests.map((value) => (
               <option key={value} value={value}>
-                {value}
+                {getAirportDisplayName(value)}
               </option>
             ))}
           </select>

@@ -4,7 +4,6 @@
  */
 
 import type { HubMarketPowerRow, RouteMarketPowerRow } from "../types/data";
-import { parseHubMarketPowerCsv, parseRouteMarketPowerCsv } from "./csvParser";
 
 interface LocalPeriodsResponse {
   periods: string[];
@@ -16,13 +15,40 @@ interface CarrierLookupResponse {
 
 interface LocalDatasetResponse {
   period: string;
-  routeCsv: string;
-  hubCsv: string;
+  routeRows: RouteMarketPowerRow[];
+  hubRows: HubMarketPowerRow[];
 }
 
 interface ImportRawResponse {
   period: string;
 }
+
+export interface FareDistributionBin {
+  fareStart: number;
+  fareEnd: number;
+  passengers: number;
+  rowCount: number;
+}
+
+export interface FareDistributionCarrier {
+  carrier: string;
+  carrierName: string;
+  totalPassengers: number;
+  totalRows: number;
+  minFare: number;
+  maxFare: number;
+  bins: FareDistributionBin[];
+}
+
+export interface RouteFareDistributionResponse {
+  period: string;
+  origin: string;
+  dest: string;
+  carrierFilter: string;
+  carriers: FareDistributionCarrier[];
+}
+
+const routeFareDistributionSessionCache = new Map<string, RouteFareDistributionResponse>();
 
 export class ImportRawError extends Error {
   readonly errorType: "verification" | "execution" | "unknown";
@@ -75,21 +101,67 @@ export async function fetchLocalDataset(period: string): Promise<{
   routeRows: RouteMarketPowerRow[];
   hubRows: HubMarketPowerRow[];
 }> {
-  // Returns already-analyzed route/hub csv payloads for one selected period.
+  // Returns already-analyzed route/hub row payloads for one selected period.
   const response = await fetch(`/api/local/dataset?period=${encodeURIComponent(period)}`);
   if (!response.ok) {
     throw new Error(`Failed loading local dataset for ${period} (${response.status}).`);
   }
 
   const data = (await response.json()) as LocalDatasetResponse;
-  const routeRows = parseRouteMarketPowerCsv(data.routeCsv);
-  const hubRows = parseHubMarketPowerCsv(data.hubCsv);
+  const routeRows = Array.isArray(data.routeRows) ? data.routeRows : [];
+  const hubRows = Array.isArray(data.hubRows) ? data.hubRows : [];
 
   return {
     period: data.period,
     routeRows,
     hubRows,
   };
+}
+
+export async function fetchRouteFareDistribution(params: {
+  period: string;
+  origin: string;
+  dest: string;
+  carrier?: string;
+}): Promise<RouteFareDistributionResponse> {
+  const period = params.period.trim();
+  const origin = params.origin.trim().toUpperCase();
+  const dest = params.dest.trim().toUpperCase();
+  const carrier = (params.carrier ?? "").trim().toUpperCase();
+  const key = `${period}|${origin}|${dest}|${carrier}`;
+  const cached = routeFareDistributionSessionCache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const query = new URLSearchParams({
+    period,
+    origin,
+    dest,
+  });
+  if (carrier) {
+    query.set("carrier", carrier);
+  }
+  const response = await fetch(`/api/local/fare-distribution?${query.toString()}`);
+  if (!response.ok) {
+    let message = `Failed loading fare distribution (${response.status}).`;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload.error) {
+        message = payload.error;
+      }
+    } catch {
+      // keep fallback message
+    }
+    throw new Error(message);
+  }
+
+  const data = (await response.json()) as RouteFareDistributionResponse;
+  if (!Array.isArray(data.carriers)) {
+    throw new Error("Fare distribution payload missing carriers.");
+  }
+  routeFareDistributionSessionCache.set(key, data);
+  return data;
 }
 
 export async function importRawDb1b(file: File): Promise<string> {

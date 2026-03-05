@@ -47,19 +47,37 @@ def period_tag(year: int, quarter: int) -> str:
 
 def find_outputs(year: int, quarter: int, directory: str = ".") -> Tuple[str, str]:
     tag = period_tag(year, quarter)
-    hub = HUB_AIRLINE_DIR / f"hubxairline_{tag}.csv"
-    route = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.csv"
-    if hub.exists() and route.exists():
-        return str(hub), str(route)
+    hub_parquet = HUB_AIRLINE_DIR / f"hubxairline_{tag}.parquet"
+    route_parquet = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.parquet"
+    if hub_parquet.exists() and route_parquet.exists():
+        return str(hub_parquet), str(route_parquet)
+
+    hub_csv = HUB_AIRLINE_DIR / f"hubxairline_{tag}.csv"
+    route_csv = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.csv"
+    if hub_csv.exists() and route_csv.exists():
+        return str(hub_csv), str(route_csv)
 
     # Backward-compatible fallback if files are not in foldered paths.
-    legacy_hub = Path(directory) / f"hubxairline_{tag}.csv"
-    legacy_route = Path(directory) / f"routexairline_{tag}.csv"
-    if not legacy_hub.exists():
-        raise FileNotFoundError(f"Missing file: {hub} (or legacy path {legacy_hub})")
-    if not legacy_route.exists():
-        raise FileNotFoundError(f"Missing file: {route} (or legacy path {legacy_route})")
-    return str(legacy_hub), str(legacy_route)
+    legacy_hub_parquet = Path(directory) / f"hubxairline_{tag}.parquet"
+    legacy_route_parquet = Path(directory) / f"routexairline_{tag}.parquet"
+    if legacy_hub_parquet.exists() and legacy_route_parquet.exists():
+        return str(legacy_hub_parquet), str(legacy_route_parquet)
+
+    legacy_hub_csv = Path(directory) / f"hubxairline_{tag}.csv"
+    legacy_route_csv = Path(directory) / f"routexairline_{tag}.csv"
+    if legacy_hub_csv.exists() and legacy_route_csv.exists():
+        return str(legacy_hub_csv), str(legacy_route_csv)
+
+    raise FileNotFoundError(
+        f"Missing parse outputs for {tag}. Tried: {hub_parquet}, {hub_csv}, {legacy_hub_parquet}, {legacy_hub_csv} "
+        f"and {route_parquet}, {route_csv}, {legacy_route_parquet}, {legacy_route_csv}."
+    )
+
+
+def read_table(path: str) -> pd.DataFrame:
+    if path.lower().endswith(".parquet"):
+        return pd.read_parquet(path)
+    return pd.read_csv(path)
 
 
 def ensure_output_dirs() -> None:
@@ -351,12 +369,11 @@ def main():
     ap.add_argument("--verbose", type=int, default=1)
 
     # Base outputs
-    # CSV export is enabled by default. Use --no_export_csv to disable it.
-    ap.add_argument("--export_csv", dest="export_csv", action="store_true", default=True, help="Export route_market_power + hub_market_power CSVs (default: on)")
-    ap.add_argument("--no_export_csv", dest="export_csv", action="store_false", help="Disable CSV export")
+    ap.add_argument("--export_parquet", dest="export_parquet", action="store_true", default=True, help="Export route/hub market power Parquet (default: on)")
+    ap.add_argument("--no_export_parquet", dest="export_parquet", action="store_false", help="Disable Parquet export")
+    ap.add_argument("--export_csv", action="store_true", help="Also export legacy CSV outputs")
 
     # Optional exports
-    ap.add_argument("--export_parquet", action="store_true", help="Export route/hub market power Parquet too")
     ap.add_argument("--export_sqlite", type=str, default=None, help="Export both tables to SQLite db path")
     ap.add_argument("--replace", action="store_true", help="SQLite: replace instead of append")
     ap.add_argument("--quality_report", action="store_true", help="Export a small JSON quality report")
@@ -368,8 +385,8 @@ def main():
     print(f"[analyze] using hub:   {hub_path}")
     print(f"[analyze] using route: {route_path}")
 
-    hub_df = pd.read_csv(hub_path)
-    route_df = pd.read_csv(route_path)
+    hub_df = read_table(hub_path)
+    route_df = read_table(route_path)
 
     route_rows_in = len(route_df)
     hub_rows_in = len(hub_df)
@@ -389,7 +406,14 @@ def main():
     print("\n=== HUB MARKET POWER (preview 20) ===")
     print(hub_power.head(20).to_string(index=False))
 
-    # CSV outputs
+    # Parquet outputs
+    if args.export_parquet:
+        out_route_p = ROUTE_MP_DIR / f"route_market_power_{tag}.parquet"
+        out_hub_p = HUB_MP_DIR / f"hub_market_power_{tag}.parquet"
+        export_to_parquet(route_power, str(out_route_p))
+        export_to_parquet(hub_power, str(out_hub_p))
+
+    # Optional legacy CSV outputs
     if args.export_csv:
         out_route = ROUTE_MP_DIR / f"route_market_power_{tag}.csv"
         out_hub = HUB_MP_DIR / f"hub_market_power_{tag}.csv"
@@ -397,13 +421,6 @@ def main():
         hub_power.to_csv(out_hub, index=False)
         print(f"\n[saved] {out_route} ({len(route_power):,} rows)")
         print(f"[saved] {out_hub} ({len(hub_power):,} rows)")
-
-    # Parquet outputs
-    if args.export_parquet:
-        out_route_p = ROUTE_MP_DIR / f"route_market_power_{tag}.parquet"
-        out_hub_p = HUB_MP_DIR / f"hub_market_power_{tag}.parquet"
-        export_to_parquet(route_power, str(out_route_p))
-        export_to_parquet(hub_power, str(out_hub_p))
 
     # SQLite outputs
     if args.export_sqlite:

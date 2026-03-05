@@ -26,5 +26,5 @@ env/
 #jetbrains and pycharm
 .idea/
 
-
+# MUTE NODE MODULES OMG
 node_modules/

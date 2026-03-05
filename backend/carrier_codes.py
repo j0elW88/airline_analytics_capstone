@@ -14,7 +14,7 @@ CARRIER_LOOKUP: Dict[str, str] = {
     "G7": "GoJet Airlines",
     "HA": "Hawaiian Airlines",
     "MQ": "Envoy Air",
-    "MX": "FMCSA",
+    "MX": "Breeze Airways",
     "NK": "Spirit Airlines",
     "OH": "PSA Airlines",
     "OO": "SkyWest Airlines",

@@ -10,6 +10,7 @@ import type {
   RouteMarketPowerRow,
 } from "../../types/data";
 import { normalizeCarrierCode } from "../../utils/carrierDisplay";
+import { formatRouteDisplay } from "../../utils/airports";
 import { roundToNearest } from "../../utils/format";
 
 export function applyRouteFilters(rows: RouteMarketPowerRow[], filters: RouteFilters): RouteMarketPowerRow[] {
@@ -102,7 +103,7 @@ export function getTopRoutes(rows: RouteMarketPowerRow[], limit = 10): TopRouteR
     if (!row) {
       return;
     }
-    const key = `${row.Origin} -> ${row.Dest}`;
+    const key = formatRouteDisplay(row.Origin, row.Dest);
     byRoute.set(key, (byRoute.get(key) ?? 0) + row.total_passengers);
   });
 
@@ -162,7 +163,7 @@ export function getHighCostRoutes(rows: RouteMarketPowerRow[], limit = 10): Arra
     if (!row) {
       return;
     }
-    const key = `${row.Origin} -> ${row.Dest}`;
+    const key = formatRouteDisplay(row.Origin, row.Dest);
     const current = map.get(key) ?? { fareXPass: 0, passengers: 0 };
     current.fareXPass += row.avg_fare_weighted * row.total_passengers;
     current.passengers += row.total_passengers;
@@ -178,20 +179,22 @@ export function getHighCostRoutes(rows: RouteMarketPowerRow[], limit = 10): Arra
     .slice(0, limit);
 }
 
-export function getCarrierShareBars(rows: RouteMarketPowerRow[], limit = 10): Array<{ label: string; value: number }> {
+export function getCarrierShareBars(rows: RouteMarketPowerRow[], limit?: number): Array<{ label: string; value: number }> {
   // Converts carrier summaries into percent-share bar rows.
-  const summaries = summarizeByCarrier(rows).slice(0, limit);
+  const summaries = summarizeByCarrier(rows);
   const totalPassengers = summaries.reduce((sum, row) => sum + row.passengers, 0);
-  return summaries.map((row) => ({
+  const visible = typeof limit === "number" ? summaries.slice(0, limit) : summaries;
+  return visible.map((row) => ({
     label: row.carrier,
     value: totalPassengers > 0 ? (row.passengers / totalPassengers) * 100 : 0,
   }));
 }
 
-export function getCarrierFareBars(rows: RouteMarketPowerRow[], limit = 10): Array<{ label: string; value: number }> {
+export function getCarrierFareBars(rows: RouteMarketPowerRow[], limit?: number): Array<{ label: string; value: number }> {
   // Converts carrier summaries into average-fare bar rows.
-  return summarizeByCarrier(rows)
-    .slice(0, limit)
+  const summaries = summarizeByCarrier(rows);
+  const visible = typeof limit === "number" ? summaries.slice(0, limit) : summaries;
+  return visible
     .map((item) => ({
       label: item.carrier,
       value: item.avgFare,
@@ -204,6 +207,24 @@ export function getFareValues(rows: RouteMarketPowerRow[]): number[] {
     .filter(Boolean)
     .map((row) => row.avg_fare_weighted)
     .filter((value) => Number.isFinite(value) && value > 0);
+}
+
+export interface FareDistributionPoint {
+  value: number;
+  carrier: string;
+  weight: number;
+}
+
+export function getFareDistributionPoints(rows: RouteMarketPowerRow[]): FareDistributionPoint[] {
+  // Keeps fare points linked to carrier + passengers so histogram bins can explain contributors.
+  return rows
+    .filter(Boolean)
+    .map((row) => ({
+      value: row.avg_fare_weighted,
+      carrier: normalizeCarrierCode(row.Carrier),
+      weight: Number.isFinite(row.total_passengers) && row.total_passengers > 0 ? row.total_passengers : 1,
+    }))
+    .filter((point) => Number.isFinite(point.value) && point.value > 0 && point.carrier.length > 0);
 }
 
 export type SelectionMode =
@@ -256,6 +277,7 @@ export function getSelectionModeTitle(mode: SelectionMode): string {
 export interface RouteMarketSnapshot {
   route: string;
   carrierCount: number;
+  carriers: string[];
   avgFare: number;
   avgSharePct: number;
   fareGapVsMin: number;
@@ -277,7 +299,7 @@ export function getRouteMarketSnapshot(rows: RouteMarketPowerRow[], limit = 12):
     if (!row) {
       return;
     }
-    const key = `${row.Origin} -> ${row.Dest}`;
+    const key = formatRouteDisplay(row.Origin, row.Dest);
     const existing = byRoute.get(key) ?? {
       fareXPass: 0,
       passengers: 0,
@@ -309,6 +331,7 @@ export function getRouteMarketSnapshot(rows: RouteMarketPowerRow[], limit = 12):
       return {
         route,
         carrierCount: values.carriers.size,
+        carriers: Array.from(values.carriers).sort(),
         avgFare,
         avgSharePct: avgShare,
         fareGapVsMin: avgFare - (Number.isFinite(values.minFare) ? values.minFare : avgFare),
@@ -331,7 +354,7 @@ export function getCarrierRouteBreakdown(rows: RouteMarketPowerRow[], limit = 12
     if (!row) {
       return;
     }
-    const key = `${row.Origin} -> ${row.Dest}`;
+    const key = formatRouteDisplay(row.Origin, row.Dest);
     const current = map.get(key) ?? { passengers: 0, fareXPass: 0 };
     current.passengers += row.total_passengers;
     current.fareXPass += row.avg_fare_weighted * row.total_passengers;

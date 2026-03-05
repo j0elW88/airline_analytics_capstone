@@ -81,6 +81,7 @@ export function ResultsOnePage({ dataset }: ResultsOnePageProps) {
           />
           <MarketOverviewPanel rows={filteredRouteRows} filters={routeFilters} />
           <RouteHubInsightsPanel
+            period={dataset.period}
             routeRows={filteredRouteRows}
             hubRows={filteredHubRows}
             routeFilters={routeFilters}
@@ -98,6 +99,7 @@ export function ResultsOnePage({ dataset }: ResultsOnePageProps) {
             showDestination={false}
           />
           <RouteHubInsightsPanel
+            period={dataset.period}
             routeRows={filteredRouteRows}
             hubRows={filteredHubRows}
             routeFilters={routeFilters}
