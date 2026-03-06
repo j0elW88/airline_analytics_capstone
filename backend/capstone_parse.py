@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from carrier_codes import get_carrier_name
+
 COL_YEAR = "Year"
 COL_QUARTER = "Quarter"
 COL_ORIGIN = "Origin"                 # origin airport code
@@ -468,6 +470,11 @@ def main():
     ap.add_argument("--export_csv", action="store_true", help="Also export legacy CSV outputs")
     ap.add_argument("--export_sqlite", type=str, default=None, help="Export to SQLite database (provide path)")
     ap.add_argument("--quality_report", action="store_true", help="Generate data quality report")
+    ap.add_argument(
+        "--delete_raw_csv",
+        action="store_true",
+        help="Delete the raw CSV after successful parse/analyze outputs are written (only if it is inside uploads/).",
+    )
 
     args = ap.parse_args()
 
@@ -565,6 +572,19 @@ def main():
         report_path = f"quality_report_{tag}.json"
         save_quality_report(report, report_path)
         print(f"\nRetention Rate: {report['ingestion']['retention_rate']}%")
+
+    # Optional: delete raw CSV to save space (only if file is inside uploads/)
+    if args.delete_raw_csv:
+        try:
+            uploads_root = Path(args.uploads_dir).resolve()
+            csv_path_resolved = Path(csv_path).resolve()
+            if uploads_root in csv_path_resolved.parents:
+                csv_path_resolved.unlink(missing_ok=True)
+                print(f"[cleanup] deleted raw CSV: {csv_path_resolved}")
+            else:
+                print(f"[cleanup] skipped (raw CSV is outside uploads/): {csv_path_resolved}")
+        except Exception as exc:
+            print(f"[cleanup] failed to delete raw CSV: {exc}")
 
     print(f"\n[info] period used: Year={year}, Quarter={quarter}")
 

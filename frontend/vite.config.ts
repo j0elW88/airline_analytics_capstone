@@ -469,7 +469,7 @@ function localDataPlugin(): Plugin {
 
             const parseResult = await runCommand(
               "py",
-              ["capstone_parse.py", "--csv", uploadPath, "--verbose", "0"],
+              ["capstone_parse.py", "--csv", uploadPath, "--verbose", "0", "--delete_raw_csv"],
               BACKEND_ROOT,
             );
             if (parseResult.code !== 0) {
