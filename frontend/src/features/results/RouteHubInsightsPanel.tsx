@@ -13,6 +13,10 @@ import { useCarrierLookup } from "../../hooks/useCarrierLookup";
 import { getCarrierDisplayName } from "../../utils/carrierDisplay";
 import { formatRouteDisplay } from "../../utils/airports";
 import {
+  formatLocationSelectionLabel,
+  parseLocationSelection,
+} from "../../utils/locationTaxonomy";
+import {
   fetchRouteFareDistribution,
   type FareDistributionBin,
   type RouteFareDistributionResponse,
@@ -225,7 +229,18 @@ export function RouteHubInsightsPanel({ period, routeRows, hubRows, routeFilters
     error: "",
   });
 
-  const routeSpecificScope = view === "routexairline" && Boolean(period) && Boolean(routeFilters.origin) && Boolean(routeFilters.dest);
+  const originSelection = parseLocationSelection(routeFilters.origin);
+  const destSelection = parseLocationSelection(routeFilters.dest);
+  const routeSpecificScope = (
+    view === "routexairline"
+    && Boolean(period)
+    && originSelection.type === "airport"
+    && destSelection.type === "airport"
+  );
+  const useRouteContributorsInFareTooltip = (
+    view === "routexairline"
+    && !(originSelection.type === "airport" && destSelection.type === "airport")
+  );
   const fareDistributionScopeKey = `${period ?? ""}|${routeFilters.origin}|${routeFilters.dest}|${routeFilters.carrier}`;
 
   const {
@@ -263,7 +278,9 @@ export function RouteHubInsightsPanel({ period, routeRows, hubRows, routeFilters
         hubBars: getHubPassengerBars(safeHubRows, safeRouteRows, Number.MAX_SAFE_INTEGER),
         farePoints: getFareDistributionPoints(safeRouteRows).map((point) => ({
           value: point.value,
-          label: getCarrierDisplayName(point.carrier, carrierLookup),
+          label: useRouteContributorsInFareTooltip
+            ? `${point.origin} -> ${point.dest}`
+            : getCarrierDisplayName(point.carrier, carrierLookup),
           weight: point.weight,
         })),
       };
@@ -279,10 +296,10 @@ export function RouteHubInsightsPanel({ period, routeRows, hubRows, routeFilters
         farePoints: [],
       };
     }
-  }, [routeRows, hubRows, carrierLookup]);
+  }, [routeRows, hubRows, carrierLookup, useRouteContributorsInFareTooltip]);
 
   const carrierFocused = Boolean(routeFilters.carrier);
-  const destinationFocused = !carrierFocused && Boolean(routeFilters.dest);
+  const destinationFocused = !carrierFocused && destSelection.type !== "all";
   const routeInsightTitle = carrierFocused
     ? "Route x Airline Insights (Carrier-focused display)"
     : destinationFocused
@@ -362,8 +379,8 @@ export function RouteHubInsightsPanel({ period, routeRows, hubRows, routeFilters
     try {
       const payload = await fetchRouteFareDistribution({
         period,
-        origin: routeFilters.origin,
-        dest: routeFilters.dest,
+        origin: originSelection.code,
+        dest: destSelection.code,
         carrier: routeFilters.carrier || undefined,
       });
       setFareDistributionPanel({
@@ -384,7 +401,7 @@ export function RouteHubInsightsPanel({ period, routeRows, hubRows, routeFilters
   }
 
   function renderRouteSpecificFareDistribution(): JSX.Element {
-    const titleBase = `Route Fare Variation: ${formatRouteDisplay(routeFilters.origin, routeFilters.dest)}`;
+    const titleBase = `Route Fare Variation: ${formatRouteDisplay(originSelection.code, destSelection.code)}`;
     if (fareDistributionPanel.status === "loading") {
       return (
         <Card title={titleBase}>
@@ -406,7 +423,8 @@ export function RouteHubInsightsPanel({ period, routeRows, hubRows, routeFilters
       return (
         <Card title={titleBase}>
           <p className="muted">
-            This analysis is available only when Origin + Destination are selected. Click below to load route-specific fare variation charts.
+            This analysis is available only when a specific Origin airport and Destination airport are selected.
+            Click below to load route-specific fare variation charts.
           </p>
           <div className="load-import-actions">
             <AppButton variant="primary" onClick={handleLoadRouteFareDistribution}>Load Fare Variation</AppButton>
@@ -501,8 +519,14 @@ export function RouteHubInsightsPanel({ period, routeRows, hubRows, routeFilters
       {routeSpecificScope ? (
         renderRouteSpecificFareDistribution()
       ) : (
-        <HistogramCard title="Fare Distribution" values={[]} points={farePoints} bucketCount={standardFareBucketCount} />
-      )}
+          <HistogramCard
+            title="Fare Distribution"
+            subtitle={`${formatLocationSelectionLabel(originSelection, "All Origins")} -> ${formatLocationSelectionLabel(destSelection, "All Destinations")}`}
+            values={[]}
+            points={farePoints}
+            bucketCount={standardFareBucketCount}
+          />
+        )}
 
       <div className="two-col">
         <Card title="Route Demand Rankings">

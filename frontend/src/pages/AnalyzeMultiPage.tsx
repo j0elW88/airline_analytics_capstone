@@ -8,6 +8,9 @@ import { PageShell } from "../components/layout/PageShell";
 import { AppButton } from "../components/ui/AppButton";
 import { EmptyState } from "../components/ui/EmptyState";
 
+const MIN_PERIODS_REQUIRED = 2;
+const MAX_PERIODS_ALLOWED = 5;
+
 interface AnalyzeMultiPageProps {
   periods: string[];
   initialSelected: string[];
@@ -21,17 +24,22 @@ export function AnalyzeMultiPage({
   onOpenAnalytics,
   onAddDataset,
 }: AnalyzeMultiPageProps) {
-  const [selected, setSelected] = useState<string[]>(initialSelected);
+  const [selected, setSelected] = useState<string[]>(initialSelected.slice(0, MAX_PERIODS_ALLOWED));
   const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const canSelectMore = selected.length < MAX_PERIODS_ALLOWED;
+  const hasMinimumPeriods = selected.length >= MIN_PERIODS_REQUIRED;
 
   useEffect(() => {
-    setSelected((prev) => prev.filter((period) => periods.includes(period)));
+    setSelected((prev) => prev.filter((period) => periods.includes(period)).slice(0, MAX_PERIODS_ALLOWED));
   }, [periods]);
 
   function togglePeriod(period: string) {
     setSelected((prev) => {
       if (prev.includes(period)) {
         return prev.filter((item) => item !== period);
+      }
+      if (prev.length >= MAX_PERIODS_ALLOWED) {
+        return prev;
       }
       return [...prev, period].sort();
     });
@@ -53,8 +61,11 @@ export function AnalyzeMultiPage({
     <PageShell title="Analyze Multiple Periods" subtitle="Select periods for compare-across-periods prototype flow">
       <section className="prototype-card">
         <p>
-          Compare mode prototype is integrated here. Select one or more periods to run the current
+          Compare mode prototype is integrated here. Select at least two periods to run the current
           multi-period comparative workflow.
+        </p>
+        <p className="muted analyze-multi-selection-status">
+          Select {MIN_PERIODS_REQUIRED} to {MAX_PERIODS_ALLOWED} periods. Currently selected: {selected.length}.
         </p>
       </section>
 
@@ -64,6 +75,7 @@ export function AnalyzeMultiPage({
             <input
               type="checkbox"
               checked={selectedSet.has(period)}
+              disabled={!selectedSet.has(period) && !canSelectMore}
               onChange={() => togglePeriod(period)}
             />
             {period}
@@ -72,7 +84,7 @@ export function AnalyzeMultiPage({
       </section>
 
       <div className="page-footer-actions">
-        <AppButton variant="primary" onClick={() => onOpenAnalytics(selected)} disabled={selected.length === 0}>
+        <AppButton variant="primary" onClick={() => onOpenAnalytics(selected)} disabled={!hasMinimumPeriods}>
           Open Multi-Period Analytics
         </AppButton>
         <AppButton onClick={onAddDataset}>Add Data Set</AppButton>

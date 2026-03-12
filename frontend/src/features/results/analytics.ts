@@ -10,20 +10,26 @@ import type {
   RouteMarketPowerRow,
 } from "../../types/data";
 import { normalizeCarrierCode } from "../../utils/carrierDisplay";
-import { formatRouteDisplay } from "../../utils/airports";
+import { formatRouteDisplay, getAirportDisplayName, normalizeAirportCode } from "../../utils/airports";
+import {
+  matchesAirportToSelection,
+  parseLocationSelection,
+} from "../../utils/locationTaxonomy";
 import { roundToNearest } from "../../utils/format";
 
 export function applyRouteFilters(rows: RouteMarketPowerRow[], filters: RouteFilters): RouteMarketPowerRow[] {
   // Applies origin/destination/carrier constraints to route rows.
+  const originSelection = parseLocationSelection(filters.origin);
+  const destSelection = parseLocationSelection(filters.dest);
   return rows.filter((row) => {
     if (!row) {
       return false;
     }
     const carrierCode = normalizeCarrierCode(row.Carrier);
-    if (filters.origin && row.Origin !== filters.origin) {
+    if (!matchesAirportToSelection(row.Origin, originSelection)) {
       return false;
     }
-    if (filters.dest && row.Dest !== filters.dest) {
+    if (!matchesAirportToSelection(row.Dest, destSelection)) {
       return false;
     }
     if (filters.carrier && carrierCode !== normalizeCarrierCode(filters.carrier)) {
@@ -212,6 +218,8 @@ export function getFareValues(rows: RouteMarketPowerRow[]): number[] {
 export interface FareDistributionPoint {
   value: number;
   carrier: string;
+  origin: string;
+  dest: string;
   weight: number;
 }
 
@@ -222,9 +230,17 @@ export function getFareDistributionPoints(rows: RouteMarketPowerRow[]): FareDist
     .map((row) => ({
       value: row.avg_fare_weighted,
       carrier: normalizeCarrierCode(row.Carrier),
+      origin: String(row.Origin || "").trim().toUpperCase(),
+      dest: String(row.Dest || "").trim().toUpperCase(),
       weight: Number.isFinite(row.total_passengers) && row.total_passengers > 0 ? row.total_passengers : 1,
     }))
-    .filter((point) => Number.isFinite(point.value) && point.value > 0 && point.carrier.length > 0);
+    .filter((point) => (
+      Number.isFinite(point.value)
+      && point.value > 0
+      && point.carrier.length > 0
+      && point.origin.length === 3
+      && point.dest.length === 3
+    ));
 }
 
 export type SelectionMode =
@@ -387,11 +403,14 @@ export function summarizeHubMarkets(
     if (!row) {
       return;
     }
-    const key = `${row.Origin} (${row.OriginState})`;
-    const current = map.get(key) ?? { passengers: 0, fareXPass: 0 };
+    const hubCode = normalizeAirportCode(row.Origin);
+    if (!hubCode) {
+      return;
+    }
+    const current = map.get(hubCode) ?? { passengers: 0, fareXPass: 0 };
     current.passengers += row.total_passengers;
     current.fareXPass += row.avg_fare_weighted * row.total_passengers;
-    map.set(key, current);
+    map.set(hubCode, current);
   });
 
   const destinationsByOrigin = new Map<string, Set<string>>();
@@ -399,17 +418,22 @@ export function summarizeHubMarkets(
     if (!row) {
       return;
     }
-    const set = destinationsByOrigin.get(row.Origin) ?? new Set<string>();
-    set.add(row.Dest);
-    destinationsByOrigin.set(row.Origin, set);
+    const hubCode = normalizeAirportCode(row.Origin);
+    const destCode = normalizeAirportCode(row.Dest);
+    if (!hubCode || !destCode) {
+      return;
+    }
+    const set = destinationsByOrigin.get(hubCode) ?? new Set<string>();
+    set.add(destCode);
+    destinationsByOrigin.set(hubCode, set);
   });
 
   return Array.from(map.entries())
-    .map(([hub, values]) => ({
-      hub,
+    .map(([hubCode, values]) => ({
+      hub: getAirportDisplayName(hubCode),
       passengers: values.passengers,
       avgFare: values.passengers ? values.fareXPass / values.passengers : 0,
-      destinationsServed: destinationsByOrigin.get(hub.split(" (")[0])?.size ?? 0,
+      destinationsServed: destinationsByOrigin.get(hubCode)?.size ?? 0,
     }))
     .sort((a, b) => b.passengers - a.passengers);
 }

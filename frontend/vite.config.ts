@@ -64,8 +64,16 @@ interface FareDistributionResponse {
   carriers: FareDistributionCarrierPayload[];
 }
 
+interface HubFareDistributionResponse {
+  period: string;
+  originScope: string;
+  carrierFilter: string;
+  carriers: FareDistributionCarrierPayload[];
+}
+
 const fareDistributionPeriodCache = new Map<string, FareDistributionRow[]>();
 const fareDistributionSessionCache = new Map<string, FareDistributionResponse>();
+const hubFareDistributionSessionCache = new Map<string, HubFareDistributionResponse>();
 
 function json(res: any, status: number, payload: unknown) {
   res.statusCode = status;
@@ -352,6 +360,79 @@ function buildFareDistributionResponse(
   };
 }
 
+function buildHubFareDistributionResponse(
+  period: string,
+  originScope: string,
+  carrierFilter: string,
+  rows: FareDistributionRow[],
+  carrierLookup: Record<string, string>,
+): HubFareDistributionResponse {
+  const normalizedOriginScope = originScope.trim().toUpperCase();
+  const byCarrier = new Map<string, {
+    totalPassengers: number;
+    totalRows: number;
+    minFare: number;
+    maxFare: number;
+    bins: Map<string, FareDistributionBinPayload>;
+  }>();
+
+  rows.forEach((row) => {
+    if (normalizedOriginScope && row.Origin !== normalizedOriginScope) {
+      return;
+    }
+    if (carrierFilter && row.Carrier !== carrierFilter) {
+      return;
+    }
+    const boundedStart = Math.max(row.fare_bin_start, FARE_LOWER_BOUND);
+    const boundedEnd = Math.min(row.fare_bin_end, FARE_UPPER_BOUND);
+    if (!Number.isFinite(boundedStart) || !Number.isFinite(boundedEnd) || boundedEnd <= boundedStart) {
+      return;
+    }
+    const carrier = row.Carrier;
+    const current = byCarrier.get(carrier) ?? {
+      totalPassengers: 0,
+      totalRows: 0,
+      minFare: Number.POSITIVE_INFINITY,
+      maxFare: Number.NEGATIVE_INFINITY,
+      bins: new Map<string, FareDistributionBinPayload>(),
+    };
+    current.totalPassengers += row.passengers_sum;
+    current.totalRows += row.row_count;
+    current.minFare = Math.min(current.minFare, boundedStart);
+    current.maxFare = Math.max(current.maxFare, boundedEnd);
+    const binKey = `${boundedStart}|${boundedEnd}`;
+    const existingBin = current.bins.get(binKey) ?? {
+      fareStart: boundedStart,
+      fareEnd: boundedEnd,
+      passengers: 0,
+      rowCount: 0,
+    };
+    existingBin.passengers += row.passengers_sum;
+    existingBin.rowCount += row.row_count;
+    current.bins.set(binKey, existingBin);
+    byCarrier.set(carrier, current);
+  });
+
+  const carriers = Array.from(byCarrier.entries())
+    .map(([carrier, agg]) => ({
+      carrier,
+      carrierName: carrierLookup[carrier] || carrier,
+      totalPassengers: agg.totalPassengers,
+      totalRows: agg.totalRows,
+      minFare: Number.isFinite(agg.minFare) ? agg.minFare : 0,
+      maxFare: Number.isFinite(agg.maxFare) ? agg.maxFare : 0,
+      bins: Array.from(agg.bins.values()).sort((a, b) => a.fareStart - b.fareStart),
+    }))
+    .sort((a, b) => b.totalPassengers - a.totalPassengers);
+
+  return {
+    period,
+    originScope: normalizedOriginScope || "ALL",
+    carrierFilter,
+    carriers,
+  };
+}
+
 function localDataPlugin(): Plugin {
   return {
     name: "local-backend-data",
@@ -420,6 +501,44 @@ function localDataPlugin(): Plugin {
             json(res, 200, payload);
           } catch (error) {
             const message = error instanceof Error ? error.message : "Failed loading fare distribution.";
+            json(res, 500, { error: message });
+          }
+          return;
+        }
+
+        if (requestUrl.pathname === "/api/local/hub-fare-distribution") {
+          const period = requestUrl.searchParams.get("period")?.trim() ?? "";
+          const origin = requestUrl.searchParams.get("origin")?.trim().toUpperCase() ?? "";
+          const carrier = requestUrl.searchParams.get("carrier")?.trim().toUpperCase() ?? "";
+
+          if (!period) {
+            json(res, 400, { error: "Missing required query param: period." });
+            return;
+          }
+
+          const sessionKey = `${period}|${origin || "ALL"}|${carrier}`;
+          const cached = hubFareDistributionSessionCache.get(sessionKey);
+          if (cached) {
+            json(res, 200, cached);
+            return;
+          }
+
+          try {
+            const [rows, carrierLookup] = await Promise.all([
+              loadFareDistributionRows(period),
+              collectCarrierLookup(),
+            ]);
+            const payload = buildHubFareDistributionResponse(period, origin, carrier, rows, carrierLookup);
+            if (payload.carriers.length === 0) {
+              json(res, 404, {
+                error: `No hub fare distribution data found for ${period}${origin ? ` ${origin}` : ""}${carrier ? ` (${carrier})` : ""}.`,
+              });
+              return;
+            }
+            hubFareDistributionSessionCache.set(sessionKey, payload);
+            json(res, 200, payload);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed loading hub fare distribution.";
             json(res, 500, { error: message });
           }
           return;
@@ -526,6 +645,11 @@ function localDataPlugin(): Plugin {
             for (const key of Array.from(fareDistributionSessionCache.keys())) {
               if (key.startsWith(`${period}|`)) {
                 fareDistributionSessionCache.delete(key);
+              }
+            }
+            for (const key of Array.from(hubFareDistributionSessionCache.keys())) {
+              if (key.startsWith(`${period}|`)) {
+                hubFareDistributionSessionCache.delete(key);
               }
             }
 
