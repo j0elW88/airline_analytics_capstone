@@ -10,7 +10,7 @@ import type {
   RouteMarketPowerRow,
 } from "../../types/data";
 import { normalizeCarrierCode } from "../../utils/carrierDisplay";
-import { formatRouteDisplay } from "../../utils/airports";
+import { formatRouteDisplay, getAirportDisplayName, normalizeAirportCode } from "../../utils/airports";
 import {
   matchesAirportToSelection,
   parseLocationSelection,
@@ -403,11 +403,14 @@ export function summarizeHubMarkets(
     if (!row) {
       return;
     }
-    const key = `${row.Origin} (${row.OriginState})`;
-    const current = map.get(key) ?? { passengers: 0, fareXPass: 0 };
+    const hubCode = normalizeAirportCode(row.Origin);
+    if (!hubCode) {
+      return;
+    }
+    const current = map.get(hubCode) ?? { passengers: 0, fareXPass: 0 };
     current.passengers += row.total_passengers;
     current.fareXPass += row.avg_fare_weighted * row.total_passengers;
-    map.set(key, current);
+    map.set(hubCode, current);
   });
 
   const destinationsByOrigin = new Map<string, Set<string>>();
@@ -415,17 +418,22 @@ export function summarizeHubMarkets(
     if (!row) {
       return;
     }
-    const set = destinationsByOrigin.get(row.Origin) ?? new Set<string>();
-    set.add(row.Dest);
-    destinationsByOrigin.set(row.Origin, set);
+    const hubCode = normalizeAirportCode(row.Origin);
+    const destCode = normalizeAirportCode(row.Dest);
+    if (!hubCode || !destCode) {
+      return;
+    }
+    const set = destinationsByOrigin.get(hubCode) ?? new Set<string>();
+    set.add(destCode);
+    destinationsByOrigin.set(hubCode, set);
   });
 
   return Array.from(map.entries())
-    .map(([hub, values]) => ({
-      hub,
+    .map(([hubCode, values]) => ({
+      hub: getAirportDisplayName(hubCode),
       passengers: values.passengers,
       avgFare: values.passengers ? values.fareXPass / values.passengers : 0,
-      destinationsServed: destinationsByOrigin.get(hub.split(" (")[0])?.size ?? 0,
+      destinationsServed: destinationsByOrigin.get(hubCode)?.size ?? 0,
     }))
     .sort((a, b) => b.passengers - a.passengers);
 }

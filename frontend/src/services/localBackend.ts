@@ -48,7 +48,15 @@ export interface RouteFareDistributionResponse {
   carriers: FareDistributionCarrier[];
 }
 
+export interface HubFareDistributionResponse {
+  period: string;
+  originScope: string;
+  carrierFilter: string;
+  carriers: FareDistributionCarrier[];
+}
+
 const routeFareDistributionSessionCache = new Map<string, RouteFareDistributionResponse>();
+const hubFareDistributionSessionCache = new Map<string, HubFareDistributionResponse>();
 
 export class ImportRawError extends Error {
   readonly errorType: "verification" | "execution" | "unknown";
@@ -161,6 +169,49 @@ export async function fetchRouteFareDistribution(params: {
     throw new Error("Fare distribution payload missing carriers.");
   }
   routeFareDistributionSessionCache.set(key, data);
+  return data;
+}
+
+export async function fetchHubFareDistribution(params: {
+  period: string;
+  origin?: string;
+  carrier?: string;
+}): Promise<HubFareDistributionResponse> {
+  const period = params.period.trim();
+  const origin = (params.origin ?? "").trim().toUpperCase();
+  const carrier = (params.carrier ?? "").trim().toUpperCase();
+  const key = `${period}|${origin || "ALL"}|${carrier}`;
+  const cached = hubFareDistributionSessionCache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const query = new URLSearchParams({ period });
+  if (origin) {
+    query.set("origin", origin);
+  }
+  if (carrier) {
+    query.set("carrier", carrier);
+  }
+  const response = await fetch(`/api/local/hub-fare-distribution?${query.toString()}`);
+  if (!response.ok) {
+    let message = `Failed loading hub fare distribution (${response.status}).`;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      if (payload.error) {
+        message = payload.error;
+      }
+    } catch {
+      // keep fallback message
+    }
+    throw new Error(message);
+  }
+
+  const data = (await response.json()) as HubFareDistributionResponse;
+  if (!Array.isArray(data.carriers)) {
+    throw new Error("Hub fare distribution payload missing carriers.");
+  }
+  hubFareDistributionSessionCache.set(key, data);
   return data;
 }
 

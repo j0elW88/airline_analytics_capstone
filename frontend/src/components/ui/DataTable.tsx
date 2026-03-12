@@ -15,12 +15,20 @@ interface DataTableProps<Row> {
   rows: Row[];
   columns: DataColumn<Row>[];
   rowKey: (row: Row, index: number) => string;
+  className?: string;
+  tableClassName?: string;
 }
 
-export function DataTable<Row>({ rows, columns, rowKey }: DataTableProps<Row>) {
+export function DataTable<Row>({
+  rows,
+  columns,
+  rowKey,
+  className = "",
+  tableClassName = "",
+}: DataTableProps<Row>) {
   return (
-    <div className="table-wrap">
-      <table className="data-table">
+    <div className={`table-wrap ${className}`.trim()}>
+      <table className={`data-table ${tableClassName}`.trim()}>
         <thead>
           <tr>
             {columns.map((column) => (

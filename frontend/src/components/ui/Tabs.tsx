@@ -12,11 +12,12 @@ interface TabsProps {
   options: TabOption[];
   activeKey: string;
   onChange: (key: string) => void;
+  className?: string;
 }
 
-export function Tabs({ options, activeKey, onChange }: TabsProps) {
+export function Tabs({ options, activeKey, onChange, className = "" }: TabsProps) {
   return (
-    <div className="tabs" role="tablist" aria-label="Analytics tabs">
+    <div className={`tabs ${className}`.trim()} role="tablist" aria-label="Analytics tabs">
       {options.map((option) => {
         const active = option.key === activeKey;
         return (

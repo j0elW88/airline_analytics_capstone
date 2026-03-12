@@ -34,14 +34,33 @@ export function MarketOverviewPanel({ rows }: MarketOverviewPanelProps) {
     label: getCarrierDisplayName(item.label, carrierLookup),
   }));
   const formatCarrierShare = (value: number) => (value > 0 && value < 1 ? "< 1%" : `${formatNumber(value)} %`);
+  const routeMarketCount = new Set(
+    rows.map((row) => `${String(row.Origin ?? "").trim().toUpperCase()}-${String(row.Dest ?? "").trim().toUpperCase()}`),
+  ).size;
 
   return (
     <section className="panel-grid">
       <div className="metrics-grid">
-        <MetricCard label="Total Passengers" value={formatNumber(stats.totalPassengers)} />
-        <MetricCard label="Passenger-Weighted Avg Fare" value={formatCurrency(stats.avgFare)} />
-        <MetricCard label="Number of Carriers" value={formatNumber(stats.carriers)} />
-        <MetricCard label="Avg Route HHI" value={formatNumber(stats.avgHhi)} />
+        <MetricCard
+          label="Total Passengers"
+          value={formatNumber(stats.totalPassengers)}
+          tooltip={`Total Passengers\nSum of total_passengers across filtered route rows.\nContributing rows: ${formatNumber(rows.length)}\nRoute markets: ${formatNumber(routeMarketCount)}`}
+        />
+        <MetricCard
+          label="Passenger-Weighted Avg Fare"
+          value={formatCurrency(stats.avgFare)}
+          tooltip={`Passenger-Weighted Avg Fare\nCalculated as sum(fare x passengers) / sum(passengers).\nContributing rows: ${formatNumber(rows.length)}\nRoute markets: ${formatNumber(routeMarketCount)}\nPassengers in denominator: ${formatNumber(stats.totalPassengers)}`}
+        />
+        <MetricCard
+          label="Number of Carriers"
+          value={formatNumber(stats.carriers)}
+          tooltip={`Number of Carriers\nCount of unique carriers after filters.\nContributing rows: ${formatNumber(rows.length)}`}
+        />
+        <MetricCard
+          label="Avg Route HHI"
+          value={formatNumber(stats.avgHhi)}
+          tooltip={`Avg Route HHI\nAverage HHI across unique filtered route markets.\nContributing route markets: ${formatNumber(routeMarketCount)}`}
+        />
       </div>
 
       <div className="two-col">

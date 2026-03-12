@@ -6,6 +6,7 @@
 import type { RouteFilters, RouteMarketPowerRow } from "../../types/data";
 import { useCarrierLookup } from "../../hooks/useCarrierLookup";
 import { getCarrierDisplayName, normalizeCarrierCode } from "../../utils/carrierDisplay";
+import { getAirportDisplayName } from "../../utils/airports";
 import {
   buildLocationSelectOptions,
   normalizeLocationSelectionValue,
@@ -16,6 +17,13 @@ interface RouteFilterBarProps {
   onChange: (next: RouteFilters) => void;
   period: string;
   rows: RouteMarketPowerRow[];
+  hubOptions?: string[];
+  hubValue?: string;
+  onHubChange?: (nextHub: string) => void;
+  priceMetricValue?: string;
+  priceMetricOptions?: Array<{ value: string; label: string }>;
+  onPriceMetricChange?: (nextPriceMetric: string) => void;
+  showPeriod?: boolean;
   showOrigin?: boolean;
   showDestination?: boolean;
 }
@@ -29,6 +37,13 @@ export function RouteFilterBar({
   onChange,
   period,
   rows,
+  hubOptions = [],
+  hubValue = "",
+  onHubChange,
+  priceMetricValue = "",
+  priceMetricOptions = [],
+  onPriceMetricChange,
+  showPeriod = true,
   showOrigin = true,
   showDestination = true,
 }: RouteFilterBarProps) {
@@ -45,14 +60,18 @@ export function RouteFilterBar({
 
   return (
     <section className="filter-grid">
-      <label>
-        Year
-        <input value={year || "-"} disabled />
-      </label>
-      <label>
-        Quarter
-        <input value={quarter ? `Q${quarter}` : "-"} disabled />
-      </label>
+      {showPeriod ? (
+        <>
+          <label>
+            Year
+            <input value={year || "-"} disabled />
+          </label>
+          <label>
+            Quarter
+            <input value={quarter ? `Q${quarter}` : "-"} disabled />
+          </label>
+        </>
+      ) : null}
       {showOrigin ? (
         <label>
           Origin
@@ -97,6 +116,31 @@ export function RouteFilterBar({
           ))}
         </select>
       </label>
+      {onHubChange ? (
+        <label>
+          Hub
+          <select value={hubValue} onChange={(event) => onHubChange(event.target.value)}>
+            <option value="">All Hubs</option>
+            {hubOptions.map((hub) => (
+              <option key={hub} value={hub}>
+                {getAirportDisplayName(hub)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {onPriceMetricChange ? (
+        <label>
+          Price Statistic
+          <select value={priceMetricValue} onChange={(event) => onPriceMetricChange(event.target.value)}>
+            {priceMetricOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
     </section>
   );
 }
