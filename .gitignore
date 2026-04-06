@@ -1,3 +1,30 @@
 __pycache__/
 *.pyc
 .env
+
+#Temporarily Remove so Github doesn't flood
+backend/hubMP_folder/
+backend/routeMP_folder/
+backend/hubxairline_folder/
+backend/routexairline_folder/
+backend/uploads/
+>>>>>>> 9947420 (Remove sample CSVs from tracking, add gitignore for data folders)
+
+=======
+#version control for branch "gavin"
+#virtual environment
+venv/
+.venv/
+env/
+
+#streamlit
+.streamlit/
+
+#os files
+.DS_Store
+
+#jetbrains and pycharm
+.idea/
+
+# MUTE NODE MODULES OMG
+node_modules/

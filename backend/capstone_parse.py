@@ -4,8 +4,11 @@ from collections import defaultdict
 from typing import Dict, Tuple, Optional
 import json
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
+
+from carrier_codes import get_carrier_name
 
 COL_YEAR = "Year"
 COL_QUARTER = "Quarter"
@@ -26,8 +29,17 @@ COL_DISTANCE = "NonStopMiles"         # use NonStopMiles for end-to-end distance
 
 fare_upper_bound = 1200
 fare_lower_bound = 50
+min_carrier_total_passengers = 1000
+fare_bin_width = 5.0
+invalid_carrier_codes_lc = {"99", "00", "", "nan", "none", "null", "unknown", "unk"}
 
-#For Bug-testing (manually source file)
+BASE_DIR = Path(__file__).resolve().parent
+HUB_AIRLINE_DIR = BASE_DIR / "hubxairline_folder"
+ROUTE_AIRLINE_DIR = BASE_DIR / "routexairline_folder"
+SPECIFIC_FARE_DISTRIBUTION_DIR = BASE_DIR / "specific_fare_distribution_charts"
+UPLOADS_DIR = BASE_DIR / "uploads"
+
+# For manual bug-testing fallback when --csv and --year/--quarter are omitted.
 currentData = "Origin_and_Destination_Survey_DB1BMarket_2025_1.csv"
 
 #########################################################################################################################
@@ -42,13 +54,55 @@ class Agg:
 
 HubAirKey = Tuple[str, str, str]       #(origin, originstate, carrier)
 RouteAirKey = Tuple[str, str, str]     #(origin, dest, carrier)
+RouteFareBinKey = Tuple[str, str, str, float, float]  # (origin, dest, carrier, fare_bin_start, fare_bin_end)
+
+
+@dataclass
+class FareBinAgg:
+    passengers_sum: float = 0.0
+    row_count: int = 0
 
 
 def _wavg(sum_xw: float, sum_w: float) -> float:
     return (sum_xw / sum_w) if sum_w > 0 else float("nan")
 
+
+def is_invalid_carrier(code: str) -> bool:
+    return str(code or "").strip().lower() in invalid_carrier_codes_lc
+
 def period_tag(year: int, quarter: int) -> str:
     return f"{year}_Q{quarter}"
+
+
+def ensure_output_dirs() -> None:
+    HUB_AIRLINE_DIR.mkdir(parents=True, exist_ok=True)
+    ROUTE_AIRLINE_DIR.mkdir(parents=True, exist_ok=True)
+    SPECIFIC_FARE_DISTRIBUTION_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def raw_filename(year: int, quarter: int) -> str:
+    return f"Origin_and_Destination_Survey_DB1BMarket_{year}_{quarter}.csv"
+
+
+def resolve_csv_path(
+    csv_arg: Optional[str],
+    year: Optional[int],
+    quarter: Optional[int],
+    uploads_dir: Path,
+) -> Path:
+    if csv_arg:
+        return Path(csv_arg)
+
+    if year is not None and quarter is not None:
+        candidate = uploads_dir / raw_filename(year, quarter)
+        if candidate.exists():
+            return candidate
+        raise FileNotFoundError(
+            f"Could not find raw file for Year={year}, Quarter={quarter} at: {candidate}. "
+            f"Either place it in uploads or pass --csv explicitly."
+        )
+
+    return Path(currentData)
 
 def _assert_required_cols(cols) -> None:
     required = {
@@ -92,11 +146,12 @@ def ingest(
     csv_path: str,
     fare_lower_bound: Optional[float],
     fare_upper_bound: Optional[float],
+    fare_bin_width: float,
     year: Optional[int] = None,
     quarter: Optional[int] = None,
     chunksize: int = 750_000,
     verbose: int = 1,
-) -> Tuple[int, int, Dict[HubAirKey, Agg], Dict[RouteAirKey, Agg], int, int]:
+) -> Tuple[int, int, Dict[HubAirKey, Agg], Dict[RouteAirKey, Agg], Dict[RouteFareBinKey, FareBinAgg], int, int]:
     """
     output:
       - detected/used year, quarter
@@ -115,6 +170,7 @@ def ingest(
 
     hub_airline: Dict[HubAirKey, Agg] = defaultdict(Agg)
     route_airline: Dict[RouteAirKey, Agg] = defaultdict(Agg)
+    route_fare_distribution: Dict[RouteFareBinKey, FareBinAgg] = defaultdict(FareBinAgg)
 
     usecols = [
         COL_YEAR, COL_QUARTER,
@@ -197,6 +253,25 @@ def ingest(
             a.miles_x_passengers_sum += float(row["_miles_x_passengers"])
             a.row_count += int(c2.loc[(origin, dest, carrier)])
 
+        # specific fare-distribution cache buckets for route-specific charts
+        safe_width = max(float(fare_bin_width), 0.01)
+        df["_fare_bin_start"] = (df[COL_FARE] // safe_width) * safe_width
+        df["_fare_bin_end"] = df["_fare_bin_start"] + safe_width
+        g3 = df.groupby([COL_ORIGIN, COL_DEST, COL_CARRIER, "_fare_bin_start", "_fare_bin_end"], sort=False)[COL_PASSENGERS].sum()
+        c3 = df.groupby([COL_ORIGIN, COL_DEST, COL_CARRIER, "_fare_bin_start", "_fare_bin_end"], sort=False).size()
+
+        for (origin, dest, carrier, bin_start, bin_end), passenger_sum in g3.items():
+            key: RouteFareBinKey = (
+                str(origin),
+                str(dest),
+                str(carrier),
+                float(bin_start),
+                float(bin_end),
+            )
+            a = route_fare_distribution[key]
+            a.passengers_sum += float(passenger_sum)
+            a.row_count += int(c3.loc[(origin, dest, carrier, bin_start, bin_end)])
+
         if verbose:
             print(f"[chunk {chunk_idx}] kept_this_chunk={len(df):,} total_kept={total_kept:,} hub_groups={len(hub_airline):,} route_groups={len(route_airline):,}")
 
@@ -204,7 +279,7 @@ def ingest(
         print(f"[done] total_seen={total_seen:,} total_kept={total_kept:,}")
         print(f"[done] hub×airline groups={len(hub_airline):,} route×airline groups={len(route_airline):,}")
 
-    return year, quarter, hub_airline, route_airline, total_seen, total_kept
+    return year, quarter, hub_airline, route_airline, route_fare_distribution, total_seen, total_kept
 
 
 def hub_airline_table(hub_airline: Dict[HubAirKey, Agg]) -> pd.DataFrame:
@@ -253,6 +328,34 @@ def route_airline_table(route_airline: Dict[RouteAirKey, Agg]) -> pd.DataFrame:
         })
     df = pd.DataFrame(rows)
     return df.sort_values(["Origin", "Dest", "Carrier"]).reset_index(drop=True)
+
+
+def route_fare_distribution_table(route_fare_distribution: Dict[RouteFareBinKey, FareBinAgg]) -> pd.DataFrame:
+    """
+    output:
+      Origin, Dest, Carrier
+      fare_bin_start, fare_bin_end
+      passengers_sum, row_count
+    """
+    rows = []
+    for (origin, dest, carrier, bin_start, bin_end), agg in route_fare_distribution.items():
+        rows.append({
+            "Origin": origin,
+            "Dest": dest,
+            "Carrier": carrier,
+            "fare_bin_start": round(float(bin_start), 4),
+            "fare_bin_end": round(float(bin_end), 4),
+            "passengers_sum": float(agg.passengers_sum),
+            "row_count": int(agg.row_count),
+        })
+    if not rows:
+        return pd.DataFrame(columns=[
+            "Origin", "Dest", "Carrier",
+            "fare_bin_start", "fare_bin_end",
+            "passengers_sum", "row_count",
+        ])
+    df = pd.DataFrame(rows)
+    return df.sort_values(["Origin", "Dest", "Carrier", "fare_bin_start"]).reset_index(drop=True)
 
 def generate_quality_report(
     year: int,
@@ -342,8 +445,16 @@ def period_tag(year: int, quarter: int) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", type=str, default=None, help="Override default CSV path")
+    ap.add_argument("--uploads_dir", type=str, default=str(UPLOADS_DIR), help="Folder used to auto-find raw files by --year/--quarter")
     ap.add_argument("--fare_lower_bound", type=float, default=fare_lower_bound)
     ap.add_argument("--fare_upper_bound", type=float, default=fare_upper_bound)
+    ap.add_argument("--fare_bin_width", type=float, default=fare_bin_width, help="Bucket width for specific fare-distribution cache exports.")
+    ap.add_argument(
+        "--min_carrier_total_passengers",
+        type=float,
+        default=min_carrier_total_passengers,
+        help="Drop carriers whose total passengers for the full period are below this threshold.",
+    )
 
     # if file contains multiple periods
     ap.add_argument("--year", type=int, default=None)
@@ -353,51 +464,92 @@ def main():
     ap.add_argument("--verbose", type=int, default=1)
     
     # Export options
-    ap.add_argument("--export_parquet", action="store_true", help="Export to Parquet format")
+    # Parquet is now the default output format for downstream navigation/storage.
+    ap.add_argument("--export_parquet", dest="export_parquet", action="store_true", default=True, help="Export outputs to Parquet (default: on)")
+    ap.add_argument("--no_export_parquet", dest="export_parquet", action="store_false", help="Disable Parquet export")
+    ap.add_argument("--export_csv", action="store_true", help="Also export legacy CSV outputs")
     ap.add_argument("--export_sqlite", type=str, default=None, help="Export to SQLite database (provide path)")
     ap.add_argument("--quality_report", action="store_true", help="Generate data quality report")
+    ap.add_argument(
+        "--delete_raw_csv",
+        action="store_true",
+        help="Delete the raw CSV after successful parse/analyze outputs are written (only if it is inside uploads/).",
+    )
 
     args = ap.parse_args()
 
 
-    # manual csv input for bug testing or disable to input your own.
-    csv_path = args.csv if args.csv is not None else currentData
+    # Resolve raw input path. If --csv is omitted, auto-find in uploads using --year/--quarter.
+    csv_path = resolve_csv_path(
+        csv_arg=args.csv,
+        year=args.year,
+        quarter=args.quarter,
+        uploads_dir=Path(args.uploads_dir),
+    )
+    ensure_output_dirs()
 
     print(f"[main] using CSV file: {csv_path}")
 
-    year, quarter, hub_airline, route_airline, total_seen, total_kept = ingest(
-        csv_path=csv_path,
+    year, quarter, hub_airline, route_airline, route_fare_distribution, total_seen, total_kept = ingest(
+        csv_path=str(csv_path),
         fare_lower_bound=args.fare_lower_bound,
         fare_upper_bound=args.fare_upper_bound,
+        fare_bin_width=args.fare_bin_width,
         year=args.year,
         quarter=args.quarter,
         chunksize=args.chunksize,
         verbose=args.verbose,
     )
 
+    # Drop carriers using period-level totals, not per-route/per-hub group totals.
+    carrier_totals: Dict[str, float] = defaultdict(float)
+    for (_, _, carrier), agg in route_airline.items():
+        carrier_totals[carrier] += agg.passengers_sum
+    keep_carriers = {
+        carrier
+        for carrier, total in carrier_totals.items()
+        if total >= float(args.min_carrier_total_passengers) and not is_invalid_carrier(carrier)
+    }
+    hub_airline = {k: v for k, v in hub_airline.items() if k[2] in keep_carriers}
+    route_airline = {k: v for k, v in route_airline.items() if k[2] in keep_carriers}
+    route_fare_distribution = {k: v for k, v in route_fare_distribution.items() if k[2] in keep_carriers}
+
+
     tag = period_tag(year, quarter)
     hub_df = hub_airline_table(hub_airline)
     route_df = route_airline_table(route_airline)
+    fare_distribution_df = route_fare_distribution_table(route_fare_distribution)
 
-    # CSV exports (default)
-    hub_out = f"hubxairline_{tag}.csv"
-    route_out = f"routexairline_{tag}.csv"
+    # Parquet exports (default)
+    hub_out = HUB_AIRLINE_DIR / f"hubxairline_{tag}.parquet"
+    route_out = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.parquet"
+    fare_distribution_out = SPECIFIC_FARE_DISTRIBUTION_DIR / f"specific_fare_distribution_{tag}.parquet"
 
     print("\n=== HUB × AIRLINE (Origin hub only; no layover hubs) ===")
     print(hub_df.head(50).to_string(index=False))  #bug test preview
-    hub_df.to_csv(hub_out, index=False)
-    print(f"[saved] {hub_out} ({len(hub_df):,} rows)")
+    if args.export_parquet:
+        export_to_parquet(hub_df, str(hub_out))
 
     print("\n=== ROUTE × AIRLINE (for later HHI / markup proxies) ===")
     print(route_df.head(50).to_string(index=False))  #bug test preview
-    route_df.to_csv(route_out, index=False)
-    print(f"[saved] {route_out} ({len(route_df):,} rows)")
-
-    # Optional Parquet export
     if args.export_parquet:
-        print("\n=== EXPORTING TO PARQUET ===")
-        export_to_parquet(hub_df, f"hubxairline_{tag}.parquet")
-        export_to_parquet(route_df, f"routexairline_{tag}.parquet")
+        export_to_parquet(route_df, str(route_out))
+
+    print("\n=== SPECIFIC FARE DISTRIBUTION CHARTS CACHE ===")
+    if args.export_parquet:
+        export_to_parquet(fare_distribution_df, str(fare_distribution_out))
+
+    # Optional legacy CSV export
+    if args.export_csv:
+        legacy_hub_out = HUB_AIRLINE_DIR / f"hubxairline_{tag}.csv"
+        legacy_route_out = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.csv"
+        legacy_fare_out = SPECIFIC_FARE_DISTRIBUTION_DIR / f"specific_fare_distribution_{tag}.csv"
+        hub_df.to_csv(legacy_hub_out, index=False)
+        route_df.to_csv(legacy_route_out, index=False)
+        fare_distribution_df.to_csv(legacy_fare_out, index=False)
+        print(f"[saved] {legacy_hub_out} ({len(hub_df):,} rows)")
+        print(f"[saved] {legacy_route_out} ({len(route_df):,} rows)")
+        print(f"[saved] {legacy_fare_out} ({len(fare_distribution_df):,} rows)")
     
     # Optional SQLite export
     if args.export_sqlite:
@@ -420,6 +572,19 @@ def main():
         report_path = f"quality_report_{tag}.json"
         save_quality_report(report, report_path)
         print(f"\nRetention Rate: {report['ingestion']['retention_rate']}%")
+
+    # Optional: delete raw CSV to save space (only if file is inside uploads/)
+    if args.delete_raw_csv:
+        try:
+            uploads_root = Path(args.uploads_dir).resolve()
+            csv_path_resolved = Path(csv_path).resolve()
+            if uploads_root in csv_path_resolved.parents:
+                csv_path_resolved.unlink(missing_ok=True)
+                print(f"[cleanup] deleted raw CSV: {csv_path_resolved}")
+            else:
+                print(f"[cleanup] skipped (raw CSV is outside uploads/): {csv_path_resolved}")
+        except Exception as exc:
+            print(f"[cleanup] failed to delete raw CSV: {exc}")
 
     print(f"\n[info] period used: Year={year}, Quarter={quarter}")
 
