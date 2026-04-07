@@ -24,11 +24,20 @@ export function HelpPage({ onBack }: HelpPageProps) {
 
         <div className="help-section" style={{ flex: 1 }}>
             <h3> (1) BTS Data Retrieval</h3>
-            <p>Navigate to the Bureau of Transportation Statistics website to download <strong>DB1B Market</strong> data. Ensure these columns are included:</p>
+            <p>Navigate to the 
+              <a href="https://www.transtats.bts.gov/databases.asp?Z1qr_VQ=E&Z1qr_Qr5p=N8vn6v10&f7owrp6_VQF=D" target="_blank" rel="noopener noreferrer"> Bureau of Transportation Statistics website </a> 
+              and find the "Airline Origin and Destination Survey (DB1BMarket)" table. </p> <p> Select preferred <code>Year</code> and <code>Quarter</code> you wish to investigate. Then download <strong>DB1B Market</strong> data. </p> <p> Then ensure the following columns are selected:</p>
             <ul style={{ paddingLeft: '1.2rem' }}>
-              <li><code>MktFare</code></li>
-              <li><code>OriginCityMarketID</code></li>
+              <li><code>Year</code></li>
+              <li><code>Quarter</code></li>
+              <li><code>Origin</code></li>
+              <li><code>OriginState</code></li>     
+              <li><code>Dest</code></li>                    
+              <li><code>DestState</code></li>
+              <li><code>TkCarrier</code></li>            
               <li><code>Passengers</code></li>
+              <li><code>MktFare</code></li> 
+              <li><code> NonStopMiles </code></li>
             </ul>
           </div>
 
