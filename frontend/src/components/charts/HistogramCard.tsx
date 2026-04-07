@@ -14,6 +14,7 @@ interface HistogramProps {
   buckets?: HistogramBucketInput[];
   bucketCount?: number;
   color?: string;
+  maxCount?: number;
 }
 
 interface ContributorStat {
@@ -254,7 +255,16 @@ function bucketHoverText(bucket: Bucket): string {
   return `${bucket.label}: ${countText}\nBucket avg fare: ${formatCurrencyTick(bucketAvgFare)}\n${parts.join("\n")}${overflow}`;
 }
 
-export function HistogramCard({ title, subtitle, values, points, buckets, bucketCount = 8, color = "var(--chart-2)" }: HistogramProps) {
+export function HistogramCard({
+  title,
+  subtitle,
+  values,
+  points,
+  buckets,
+  bucketCount = 8,
+  color = "var(--chart-2)",
+  maxCount,
+}: HistogramProps) {
   const histogram = buckets
     ? buckets.map((bucket) => ({
       label: bucket.label,
@@ -264,12 +274,16 @@ export function HistogramCard({ title, subtitle, values, points, buckets, bucket
       tooltip: bucket.tooltip,
     }))
     : buildHistogram(values, bucketCount, points);
-  let maxCount = 0;
+  let localMaxCount = 0;
   for (const item of histogram) {
-    if (item.count > maxCount) {
-      maxCount = item.count;
+    if (item.count > localMaxCount) {
+      localMaxCount = item.count;
     }
   }
+  const providedMaxCount = typeof maxCount === "number" && Number.isFinite(maxCount) && maxCount > 0
+    ? maxCount
+    : null;
+  const resolvedMaxCount = providedMaxCount ?? localMaxCount;
   return (
     <Card title={title} subtitle={subtitle} className="chart-card histogram-card">
       {histogram.length === 0 ? (
@@ -282,7 +296,7 @@ export function HistogramCard({ title, subtitle, values, points, buckets, bucket
                 <div
                   className="histogram__bar"
                   style={{
-                    height: `${maxCount ? Math.max((bucket.count / maxCount) * 100, 4) : 0}%`,
+                    height: `${resolvedMaxCount ? Math.max(Math.min((bucket.count / resolvedMaxCount) * 100, 100), 4) : 0}%`,
                     background: color,
                   }}
                   title={bucketHoverText(bucket)}

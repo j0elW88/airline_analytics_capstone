@@ -144,6 +144,18 @@ function toBarRows(rows: ComparativeChangeRow[]): Array<{ label: string; value: 
   }));
 }
 
+function getSharedBarMax(groups: Array<Array<{ value: number }>>): number {
+  let maxValue = 0;
+  groups.forEach((rows) => {
+    rows.forEach((row) => {
+      if (Number.isFinite(row.value) && row.value > maxValue) {
+        maxValue = row.value;
+      }
+    });
+  });
+  return maxValue;
+}
+
 function formatDeltaCell(delta: TrendDelta, valueFormatter: (value: number) => string): string {
   const sign = delta.absolute > 0 ? "+" : "";
   const absolute = `${sign}${valueFormatter(delta.absolute)}`;
@@ -1625,6 +1637,10 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
       );
     }
 
+    const frequencyIncreaseRows = toBarRows(frequencyShift.increases);
+    const frequencyDecreaseRows = toBarRows(frequencyShift.decreases);
+    const frequencyShiftMax = getSharedBarMax([frequencyIncreaseRows, frequencyDecreaseRows]);
+
     return (
       <section className="panel-grid">
         <Card title={title} subtitle={`${subtitle} (${routeFilters.carrier.toUpperCase()})`}>
@@ -1646,13 +1662,15 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
         <div className="two-col">
           <SimpleBarChart
             title="Fare Band Frequency Gains vs Base (percentage points)"
-            rows={toBarRows(frequencyShift.increases)}
+            rows={frequencyIncreaseRows}
+            maxValue={frequencyShiftMax}
             valueFormatter={(value) => `${value.toFixed(1)} percentage points`}
             color="#1f4e79"
           />
           <SimpleBarChart
             title="Fare Band Frequency Losses vs Base (percentage points)"
-            rows={toBarRows(frequencyShift.decreases)}
+            rows={frequencyDecreaseRows}
+            maxValue={frequencyShiftMax}
             valueFormatter={(value) => `${value.toFixed(1)} percentage points`}
             color="#8b3d3d"
           />
@@ -1677,6 +1695,8 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
         </Card>
       );
     }
+
+    const hubActivityBarsMax = getSharedBarMax([hubTopAirlineBars, hubTopRouteBars]);
 
     return (
       <section className="panel-grid">
@@ -1720,12 +1740,14 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
           <SimpleBarChart
             title="Top Airlines at Selected Hub (Passengers)"
             rows={hubTopAirlineBars}
+            maxValue={hubActivityBarsMax}
             valueFormatter={formatNumber}
             color="#1f4e79"
           />
           <SimpleBarChart
             title="Top Overall Routes from Selected Hub (Passengers)"
             rows={hubTopRouteBars}
+            maxValue={hubActivityBarsMax}
             valueFormatter={formatNumber}
             color="#2f855a"
           />
@@ -1758,6 +1780,19 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
         </section>
       );
     }
+
+    const routeFareIncreaseRows = toBarRows(routeFareChange.increases);
+    const routeFareDecreaseRows = toBarRows(routeFareChange.decreases);
+    const routeFareChangeMax = getSharedBarMax([routeFareIncreaseRows, routeFareDecreaseRows]);
+    const routeShareGainRows = toBarRows(routeShareShift.increases).map((row) => ({
+      ...row,
+      label: getCarrierDisplayName(row.label, carrierLookup),
+    }));
+    const routeShareLossRows = toBarRows(routeShareShift.decreases).map((row) => ({
+      ...row,
+      label: getCarrierDisplayName(row.label, carrierLookup),
+    }));
+    const routeShareShiftMax = getSharedBarMax([routeShareGainRows, routeShareLossRows]);
 
     return (
       <section className="panel-grid">
@@ -1866,34 +1901,32 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
           <SimpleBarChart
             title="Routes With Largest Fare Increases vs Base"
             subtitle={routeFareChangeSummary}
-            rows={toBarRows(routeFareChange.increases)}
+            rows={routeFareIncreaseRows}
+            maxValue={routeFareChangeMax}
             valueFormatter={formatCurrency}
             color="#b7791f"
           />
           <SimpleBarChart
             title="Routes With Largest Fare Decreases vs Base"
             subtitle={routeFareChangeSummary}
-            rows={toBarRows(routeFareChange.decreases)}
+            rows={routeFareDecreaseRows}
+            maxValue={routeFareChangeMax}
             valueFormatter={formatCurrency}
             color="#2f855a"
           />
           <SimpleBarChart
             title="Carrier Share Gains vs Base (percentage points)"
             subtitle={routeCarrierShareSummary}
-            rows={toBarRows(routeShareShift.increases).map((row) => ({
-              ...row,
-              label: getCarrierDisplayName(row.label, carrierLookup),
-            }))}
+            rows={routeShareGainRows}
+            maxValue={routeShareShiftMax}
             valueFormatter={(value) => `${value.toFixed(1)} percentage points`}
             color="#1f4e79"
           />
           <SimpleBarChart
             title="Carrier Share Losses vs Base (percentage points)"
             subtitle={routeCarrierShareSummary}
-            rows={toBarRows(routeShareShift.decreases).map((row) => ({
-              ...row,
-              label: getCarrierDisplayName(row.label, carrierLookup),
-            }))}
+            rows={routeShareLossRows}
+            maxValue={routeShareShiftMax}
             valueFormatter={(value) => `${value.toFixed(1)} percentage points`}
             color="#8b3d3d"
           />
@@ -1924,6 +1957,9 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
     }
 
     const hasHubFareStats = hubFareStatsByPeriod.length > 0;
+    const hubPassengerIncreaseRows = toBarRows(hubPassengerChange.increases);
+    const hubPassengerDecreaseRows = toBarRows(hubPassengerChange.decreases);
+    const hubPassengerChangeMax = getSharedBarMax([hubPassengerIncreaseRows, hubPassengerDecreaseRows]);
 
     return (
       <section className="panel-grid">
@@ -2002,14 +2038,16 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
             <SimpleBarChart
               title="Hubs With Largest Passenger Increases vs Base"
               subtitle={`Includes only hubs with >= ${formatNumber(MIN_HUB_PASSENGER_CHANGE_PASSENGERS)} passengers in both base and comparison periods.`}
-              rows={toBarRows(hubPassengerChange.increases)}
+              rows={hubPassengerIncreaseRows}
+              maxValue={hubPassengerChangeMax}
               valueFormatter={formatNumber}
               color="#1f4e79"
             />
             <SimpleBarChart
               title="Hubs With Largest Passenger Decreases vs Base"
               subtitle={`Includes only hubs with >= ${formatNumber(MIN_HUB_PASSENGER_CHANGE_PASSENGERS)} passengers in both base and comparison periods.`}
-              rows={toBarRows(hubPassengerChange.decreases)}
+              rows={hubPassengerDecreaseRows}
+              maxValue={hubPassengerChangeMax}
               valueFormatter={formatNumber}
               color="#8b3d3d"
             />

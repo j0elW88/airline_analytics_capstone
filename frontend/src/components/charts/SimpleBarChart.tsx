@@ -17,6 +17,7 @@ interface SimpleBarChartProps {
   subtitle?: string;
   rows: BarDatum[];
   color?: string;
+  maxValue?: number;
   valueLabel?: string;
   valueFormatter?: (value: number) => string;
   headerRight?: ReactNode;
@@ -27,11 +28,17 @@ export function SimpleBarChart({
   subtitle,
   rows,
   color = "var(--chart-1)",
+  maxValue,
   valueLabel,
   valueFormatter,
   headerRight,
 }: SimpleBarChartProps) {
-  const maxValue = Math.max(...rows.map((item) => item.value), 0);
+  const providedMaxValue = typeof maxValue === "number" && Number.isFinite(maxValue) && maxValue > 0
+    ? maxValue
+    : null;
+  const resolvedMaxValue = providedMaxValue
+    ? providedMaxValue
+    : Math.max(...rows.map((item) => item.value), 0);
 
   return (
     <Card title={title} subtitle={subtitle} className="chart-card" headerRight={headerRight}>
@@ -40,7 +47,9 @@ export function SimpleBarChart({
       ) : (
         <div className="bar-chart">
           {rows.map((row) => {
-            const width = maxValue > 0 ? `${Math.max((row.value / maxValue) * 100, 2)}%` : "0%";
+            const safeValue = Number.isFinite(row.value) ? Math.max(row.value, 0) : 0;
+            const ratio = resolvedMaxValue > 0 ? (safeValue / resolvedMaxValue) * 100 : 0;
+            const width = ratio > 0 ? `${Math.max(Math.min(ratio, 100), 2)}%` : "0%";
             return (
               <div key={row.label} className="bar-chart__row">
                 <div className="bar-chart__meta">

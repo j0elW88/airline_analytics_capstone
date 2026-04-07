@@ -442,16 +442,24 @@ export function RouteHubInsightsPanel({ period, routeRows, hubRows, routeFilters
       );
     }
 
+    const carrierCharts = carriers.map((carrier, index) => {
+      const color = fareDistributionCarrierColors[index % fareDistributionCarrierColors.length];
+      const consolidatedBins = consolidateFareBins(
+        carrier.bins,
+        carrier.totalPassengers,
+        carrier.minFare,
+        carrier.maxFare,
+      );
+      return {
+        carrier,
+        color,
+        consolidatedBins,
+      };
+    });
+
     return (
       <section className="panel-grid">
-        {carriers.map((carrier, index) => {
-          const color = fareDistributionCarrierColors[index % fareDistributionCarrierColors.length];
-          const consolidatedBins = consolidateFareBins(
-            carrier.bins,
-            carrier.totalPassengers,
-            carrier.minFare,
-            carrier.maxFare,
-          );
+        {carrierCharts.map(({ carrier, color, consolidatedBins }) => {
           const subtitle = `Passengers ${formatNumber(carrier.totalPassengers)} | Entries ${formatNumber(carrier.totalRows)} | Range ${formatCurrency(carrier.minFare)} to ${formatCurrency(carrier.maxFare)} | Bins ${formatNumber(carrier.bins.length)} -> ${formatNumber(consolidatedBins.length)}`;
           return (
             <HistogramCard
