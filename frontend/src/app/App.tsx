@@ -15,6 +15,7 @@ import { LoadDatasetPage } from "../pages/LoadDatasetPage";
 import { ResultsMultiPage } from "../pages/ResultsMultiPage";
 import { ResultsOnePage } from "../pages/ResultsOnePage";
 import { StartPage } from "../pages/StartPage";
+import { HelpPage } from "../pages/HelpPage";
 import { ImportRawError, fetchLocalDataset, fetchLocalPeriods, importRawDb1b } from "../services/localBackend";
 import type { HubMarketPowerRow, RouteMarketPowerRow } from "../types/data";
 import { getCompletePeriods, getSortedPeriods, useAppState } from "./state";
@@ -141,8 +142,11 @@ export function App() {
             onAnalyzeOne={() => navTo("analyze_one")}
             onAnalyzeMulti={() => navTo("analyze_multi")}
             onLoad={() => navTo("load")}
+            onHelp={() => navTo("help")}
           />
         );
+      case "help":
+        return <HelpPage onBack={() => navTo("start")} />;
       case "load":
         return (
           <LoadDatasetPage

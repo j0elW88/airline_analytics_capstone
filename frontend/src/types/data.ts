@@ -9,6 +9,7 @@ export type Screen =
   | "loaded"
   | "start"
   | "load"
+  | "help"
   | "analyze_one"
   | "analyze_multi"
   | "results_one"

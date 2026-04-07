@@ -10,11 +10,18 @@ interface StartPageProps {
   onAnalyzeOne: () => void;
   onAnalyzeMulti: () => void;
   onLoad: () => void;
+  onHelp: () => void;
 }
 
-export function StartPage({ onAnalyzeOne, onAnalyzeMulti, onLoad }: StartPageProps) {
+export function StartPage({ onAnalyzeOne, onAnalyzeMulti, onLoad, onHelp }: StartPageProps) {
   return (
-    <main className="page-shell page-shell--landing start-page">
+    <main className="page-shell page-shell--landing start-page" style={{ position: 'relative' }}>
+      <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 10 }}>
+        <AppButton variant="primary" onClick={onHelp}>
+          Help 
+        </AppButton>
+      </div>
+
       <section className="page-shell__content start-page__content">
         <header className="start-page__hero">
           <div className="start-page__branding">
