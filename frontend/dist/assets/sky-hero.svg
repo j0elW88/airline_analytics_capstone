@@ -1,0 +1,23 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4AA8F7"/>
+      <stop offset="1" stop-color="#A8D8FF"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <g filter="url(#soft)" fill="white" opacity="0.86">
+    <ellipse cx="250" cy="180" rx="170" ry="70"/>
+    <ellipse cx="410" cy="150" rx="120" ry="50"/>
+    <ellipse cx="980" cy="220" rx="220" ry="86"/>
+    <ellipse cx="1180" cy="180" rx="130" ry="55"/>
+    <ellipse cx="1350" cy="500" rx="200" ry="76"/>
+    <ellipse cx="1140" cy="560" rx="150" ry="60"/>
+    <ellipse cx="440" cy="620" rx="260" ry="90"/>
+    <ellipse cx="230" cy="700" rx="140" ry="55"/>
+  </g>
+</svg>
