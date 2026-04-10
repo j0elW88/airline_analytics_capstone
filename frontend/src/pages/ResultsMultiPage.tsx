@@ -1090,8 +1090,7 @@ export function ResultsMultiPage({ datasets }: ResultsMultiPageProps) {
     return Array.from(byCarrier.entries())
       .map(([carrierCode, values]) => {
         const topRouteEntry = Array.from(values.routes.entries())
-          .sort((a, b) => b[1] - a[1])
-          .at(0);
+          .sort((a, b) => b[1] - a[1])[0];
         return {
           carrierCode,
           carrierLabel: getCarrierDisplayName(carrierCode, carrierLookup),

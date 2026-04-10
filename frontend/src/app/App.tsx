@@ -16,6 +16,7 @@ import { ResultsMultiPage } from "../pages/ResultsMultiPage";
 import { ResultsOnePage } from "../pages/ResultsOnePage";
 import { StartPage } from "../pages/StartPage";
 import { HelpPage } from "../pages/HelpPage";
+import { AboutPage } from "../pages/AboutPage";
 import { ImportRawError, fetchLocalDataset, fetchLocalPeriods, importRawDb1b } from "../services/localBackend";
 import type { HubMarketPowerRow, RouteMarketPowerRow } from "../types/data";
 import { getCompletePeriods, getSortedPeriods, useAppState } from "./state";
@@ -143,10 +144,13 @@ export function App() {
             onAnalyzeMulti={() => navTo("analyze_multi")}
             onLoad={() => navTo("load")}
             onHelp={() => navTo("help")}
+            onAbout={() => navTo("about")}
           />
         );
       case "help":
         return <HelpPage onBack={() => navTo("start")} />;
+      case "about":
+        return <AboutPage />;
       case "load":
         return (
           <LoadDatasetPage
@@ -206,7 +210,7 @@ export function App() {
   return (
     <>
       {/* Home/start hide the top nav for a cleaner launch view. */}
-      {state.screen !== "home" && state.screen !== "start" ? (
+      {state.screen !== "home" && state.screen !== "start" && state.screen !== "help" ? (
         <TopNav showBack onBack={navBack} />
       ) : null}
       {renderCurrentScreen()}

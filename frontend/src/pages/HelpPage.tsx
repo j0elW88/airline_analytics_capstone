@@ -2,6 +2,7 @@
  * @file src/pages/HelpPage.tsx
  */
 import { PageShell } from "../components/layout/PageShell";
+import { AppButton } from "../components/ui/AppButton";
 
 interface HelpPageProps {
   onBack: () => void;
@@ -12,6 +13,11 @@ export function HelpPage({ onBack }: HelpPageProps) {
     <PageShell 
       title="Help Guide" 
       subtitle="User instructions for Airline Analytics Capstone"
+      actions={
+        <AppButton variant="ghost" onClick={onBack}>
+          Back
+        </AppButton>
+      }
     >
       <section className="help-content" style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px' }}>
         <div style={{ 

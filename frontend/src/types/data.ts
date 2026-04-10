@@ -10,6 +10,7 @@ export type Screen =
   | "start"
   | "load"
   | "help"
+  | "about"
   | "analyze_one"
   | "analyze_multi"
   | "results_one"

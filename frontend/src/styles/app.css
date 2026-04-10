@@ -91,6 +91,53 @@
   padding-top: 48px;
 }
 
+.start-page__menu {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.start-page__menu .app-button {
+  min-width: 46px;
+  min-height: 42px;
+  padding: 10px 12px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.start-page__menu-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.start-page__menu-panel {
+  width: 84px;
+  border: 2px solid var(--blank);
+  border-radius: calc(var(--radius-base) + 2px);
+  background: var(--bw);
+  box-shadow: var(--button-shadow);
+  overflow: hidden;
+}
+
+.start-page__menu-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 650;
+}
+
+.start-page__menu-item:hover,
+.start-page__menu-item:focus-visible {
+  outline: none;
+  background: rgba(11, 79, 121, 0.08);
+}
+
 .start-page__content {
   min-height: calc(100vh - 120px);
   display: grid;
