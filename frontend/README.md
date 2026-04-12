@@ -93,7 +93,7 @@ Also:
 - Backend-generated navigation datasets are Parquet-first:
   - `backend/routeMP_folder/route_market_power_<period>.parquet`
   - `backend/hubMP_folder/hub_market_power_<period>.parquet`
-  - `backend/specific_fare_distribution_charts/specific_fare_distribution_<period>.parquet`
+- Route fare distribution for charts is generated on-demand by `capstone_parse.py` and held in runtime memory.
 
 ## Folder Guide
 

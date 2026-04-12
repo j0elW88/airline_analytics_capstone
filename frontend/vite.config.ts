@@ -12,13 +12,14 @@ const __dirname = path.dirname(__filename);
 const BACKEND_ROOT = path.resolve(__dirname, "../backend");
 const ROUTE_DIR = path.join(BACKEND_ROOT, "routeMP_folder");
 const HUB_DIR = path.join(BACKEND_ROOT, "hubMP_folder");
-const FARE_DISTRIBUTION_DIR = path.join(BACKEND_ROOT, "specific_fare_distribution_charts");
 const UPLOADS_DIR = path.join(BACKEND_ROOT, "uploads");
 
 const ROUTE_PATTERN = /^route_market_power_(\d{4}_Q[1-4])\.parquet$/i;
 const HUB_PATTERN = /^hub_market_power_(\d{4}_Q[1-4])\.parquet$/i;
 const FARE_LOWER_BOUND = 50;
 const FARE_UPPER_BOUND = 1200;
+const FARE_DISTRIBUTION_JSON_START_MARKER = "__FARE_DISTRIBUTION_JSON_START__";
+const FARE_DISTRIBUTION_JSON_END_MARKER = "__FARE_DISTRIBUTION_JSON_END__";
 const VERIFICATION_FAILURE_PATTERNS = [
   /missing required columns/i,
   /could not detect year\/quarter/i,
@@ -207,6 +208,24 @@ function parseJsonArrayOutput(raw: string): Record<string, unknown>[] {
   return parsed as Record<string, unknown>[];
 }
 
+function parseMarkedJsonArrayOutput(raw: string, startMarker: string, endMarker: string): Record<string, unknown>[] {
+  const text = String(raw ?? "");
+  const start = text.indexOf(startMarker);
+  if (start < 0) {
+    throw new Error(`Backend output missing marker: ${startMarker}`);
+  }
+  const end = text.indexOf(endMarker, start + startMarker.length);
+  if (end < 0) {
+    throw new Error(`Backend output missing marker: ${endMarker}`);
+  }
+  const payload = text.slice(start + startMarker.length, end).trim();
+  const parsed = JSON.parse(payload) as unknown;
+  if (!Array.isArray(parsed)) {
+    throw new Error("Expected JSON array payload.");
+  }
+  return parsed as Record<string, unknown>[];
+}
+
 async function readParquetRows(fullPath: string): Promise<Record<string, unknown>[]> {
   const result = await runCommand(
     "py",
@@ -223,16 +242,26 @@ async function readParquetRows(fullPath: string): Promise<Record<string, unknown
   return parseJsonArrayOutput(result.output);
 }
 
-async function ensureFareDistributionCache(period: string): Promise<void> {
-  const filename = `specific_fare_distribution_${period}.parquet`;
-  const fullPath = path.join(FARE_DISTRIBUTION_DIR, filename);
-  try {
-    await fs.access(fullPath);
-    return;
-  } catch {
-    // Cache missing: regenerate for this period from raw uploads.
+function normalizeFareDistributionRows(rawRows: Record<string, unknown>[]): FareDistributionRow[] {
+  if (rawRows.length === 0) {
+    return [];
   }
+  const rows: FareDistributionRow[] = [];
+  for (const row of rawRows) {
+    rows.push({
+      Origin: String(row.Origin ?? "").trim().toUpperCase(),
+      Dest: String(row.Dest ?? "").trim().toUpperCase(),
+      Carrier: String(row.Carrier ?? "").trim().toUpperCase(),
+      fare_bin_start: Number(row.fare_bin_start ?? 0),
+      fare_bin_end: Number(row.fare_bin_end ?? 0),
+      passengers_sum: Number(row.passengers_sum ?? 0),
+      row_count: Number(row.row_count ?? 0),
+    });
+  }
+  return rows;
+}
 
+async function generateFareDistributionRowsOnDemand(period: string): Promise<FareDistributionRow[]> {
   const parsed = parsePeriod(period);
   if (!parsed) {
     throw new Error(`Invalid period format: ${period}`);
@@ -248,40 +277,27 @@ async function ensureFareDistributionCache(period: string): Promise<void> {
       parsed.quarter,
       "--verbose",
       "0",
+      "--no_export_parquet",
+      "--emit_fare_distribution_json",
     ],
     BACKEND_ROOT,
   );
   if (parseResult.code !== 0) {
-    throw new Error(`Failed generating fare distribution cache for ${period}:\n${parseResult.output}`);
+    throw new Error(`Failed generating on-demand fare distribution for ${period}:\n${parseResult.output}`);
   }
+  const rawRows = parseMarkedJsonArrayOutput(
+    parseResult.output,
+    FARE_DISTRIBUTION_JSON_START_MARKER,
+    FARE_DISTRIBUTION_JSON_END_MARKER,
+  );
+  return normalizeFareDistributionRows(rawRows);
 }
 
 async function loadFareDistributionRows(period: string): Promise<FareDistributionRow[]> {
   if (fareDistributionPeriodCache.has(period)) {
     return fareDistributionPeriodCache.get(period) ?? [];
   }
-  await ensureFareDistributionCache(period);
-  const filename = `specific_fare_distribution_${period}.parquet`;
-  const fullPath = path.join(FARE_DISTRIBUTION_DIR, filename);
-  const rawRows = await readParquetRows(fullPath);
-  if (rawRows.length === 0) {
-    fareDistributionPeriodCache.set(period, []);
-    return [];
-  }
-
-  const rows: FareDistributionRow[] = [];
-  for (const row of rawRows) {
-    rows.push({
-      Origin: String(row.Origin ?? "").trim().toUpperCase(),
-      Dest: String(row.Dest ?? "").trim().toUpperCase(),
-      Carrier: String(row.Carrier ?? "").trim().toUpperCase(),
-      fare_bin_start: Number(row.fare_bin_start ?? 0),
-      fare_bin_end: Number(row.fare_bin_end ?? 0),
-      passengers_sum: Number(row.passengers_sum ?? 0),
-      row_count: Number(row.row_count ?? 0),
-    });
-  }
-
+  const rows = await generateFareDistributionRowsOnDemand(period);
   fareDistributionPeriodCache.set(period, rows);
   return rows;
 }
