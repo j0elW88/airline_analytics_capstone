@@ -10,7 +10,7 @@ Short version: raw DB1B market CSV goes in, cleaned/aggregated market power outp
 2. It builds:
    - "Hub x Airline" aggregates
    - "Route x Airline" aggregates
-   - in-memory/on-demand route fare-bin payloads for route-specific fare variation charts
+   - route fare-bin cache for route-specific fare variation charts
 3. "capstone_analyze.py" reads those parse outputs and computes shares + HHI.
 4. Frontend dev server reads analyzer outputs for app screens.
 
@@ -28,7 +28,7 @@ Purpose:
 - Ingest raw DB1B rows
 - Clean/filter data
 - Aggregate weighted stats by hub and route
-- Build fare bins for route deep-dive charts (served on-demand; not exported to a dedicated folder)
+- Build cached fare bins for route deep-dive charts
 
 Important defaults:
 - fare lower bound: "50"
@@ -40,6 +40,7 @@ Important defaults:
 Outputs:
 - "hubxairline_folder/hubxairline_<YEAR>_Q<QUARTER>.parquet"
 - "routexairline_folder/routexairline_<YEAR>_Q<QUARTER>.parquet"
+- "specific_fare_distribution_charts/specific_fare_distribution_<YEAR>_Q<QUARTER>.parquet"
 
 ### "capstone_analyze.py"
 
@@ -93,6 +94,7 @@ Note:
 - "uploads/" raw DB1B files
 - "hubxairline_folder/" parse hub outputs
 - "routexairline_folder/" parse route outputs
+- "specific_fare_distribution_charts/" fare-bin cache for route-specific charts
 - "routeMP_folder/" analyzed route market power
 - "hubMP_folder/" analyzed hub market power
 

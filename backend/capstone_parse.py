@@ -36,6 +36,7 @@ invalid_carrier_codes_lc = {"99", "00", "", "nan", "none", "null", "unknown", "u
 BASE_DIR = Path(__file__).resolve().parent
 HUB_AIRLINE_DIR = BASE_DIR / "hubxairline_folder"
 ROUTE_AIRLINE_DIR = BASE_DIR / "routexairline_folder"
+SPECIFIC_FARE_DISTRIBUTION_DIR = BASE_DIR / "specific_fare_distribution_charts"
 UPLOADS_DIR = BASE_DIR / "uploads"
 FARE_DISTRIBUTION_JSON_START_MARKER = "__FARE_DISTRIBUTION_JSON_START__"
 FARE_DISTRIBUTION_JSON_END_MARKER = "__FARE_DISTRIBUTION_JSON_END__"
@@ -78,6 +79,7 @@ def period_tag(year: int, quarter: int) -> str:
 def ensure_output_dirs() -> None:
     HUB_AIRLINE_DIR.mkdir(parents=True, exist_ok=True)
     ROUTE_AIRLINE_DIR.mkdir(parents=True, exist_ok=True)
+    SPECIFIC_FARE_DISTRIBUTION_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def raw_filename(year: int, quarter: int) -> str:
@@ -448,7 +450,7 @@ def main():
     ap.add_argument("--uploads_dir", type=str, default=str(UPLOADS_DIR), help="Folder used to auto-find raw files by --year/--quarter")
     ap.add_argument("--fare_lower_bound", type=float, default=fare_lower_bound)
     ap.add_argument("--fare_upper_bound", type=float, default=fare_upper_bound)
-    ap.add_argument("--fare_bin_width", type=float, default=fare_bin_width, help="Bucket width for route-specific fare distribution bins.")
+    ap.add_argument("--fare_bin_width", type=float, default=fare_bin_width, help="Bucket width for specific fare-distribution cache exports.")
     ap.add_argument(
         "--min_carrier_total_passengers",
         type=float,
@@ -528,6 +530,7 @@ def main():
     # Parquet exports (default)
     hub_out = HUB_AIRLINE_DIR / f"hubxairline_{tag}.parquet"
     route_out = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.parquet"
+    fare_distribution_out = SPECIFIC_FARE_DISTRIBUTION_DIR / f"specific_fare_distribution_{tag}.parquet"
 
     print("\n=== HUB × AIRLINE (Origin hub only; no layover hubs) ===")
     print(hub_df.head(50).to_string(index=False))  #bug test preview
@@ -539,17 +542,21 @@ def main():
     if args.export_parquet:
         export_to_parquet(route_df, str(route_out))
 
-    print("\n=== SPECIFIC FARE DISTRIBUTION (ON-DEMAND) ===")
-    print("[info] no file export; served on-demand for chart endpoints")
+    print("\n=== SPECIFIC FARE DISTRIBUTION CHARTS CACHE ===")
+    if args.export_parquet:
+        export_to_parquet(fare_distribution_df, str(fare_distribution_out))
 
     # Optional legacy CSV export
     if args.export_csv:
         legacy_hub_out = HUB_AIRLINE_DIR / f"hubxairline_{tag}.csv"
         legacy_route_out = ROUTE_AIRLINE_DIR / f"routexairline_{tag}.csv"
+        legacy_fare_out = SPECIFIC_FARE_DISTRIBUTION_DIR / f"specific_fare_distribution_{tag}.csv"
         hub_df.to_csv(legacy_hub_out, index=False)
         route_df.to_csv(legacy_route_out, index=False)
+        fare_distribution_df.to_csv(legacy_fare_out, index=False)
         print(f"[saved] {legacy_hub_out} ({len(hub_df):,} rows)")
         print(f"[saved] {legacy_route_out} ({len(route_df):,} rows)")
+        print(f"[saved] {legacy_fare_out} ({len(fare_distribution_df):,} rows)")
     
     # Optional SQLite export
     if args.export_sqlite:
